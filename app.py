@@ -181,7 +181,6 @@ def fetch_sector_analytics():
                 
                 symbol_clean = ticker.replace('.NS', '')
                 
-                # Dynamic Last Candle Time Formatting
                 last_candle_time = df.index[-1]
                 formatted_time = last_candle_time.strftime('%H:%M') if hasattr(last_candle_time, 'strftime') else str(last_candle_time)[11:16]
                 
@@ -208,62 +207,21 @@ with st.spinner("Calculating Indicators & Live Market Scans..."):
 
 if not df_data.empty:
     
-    # --- 1. TOP FILTER BAR ---
     st.subheader("🔥 Market Pulse Scanners")
     
-    f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-    
-    with f_col1:
-        trend_filter = st.selectbox("↕️ Trend", ["Neutral (All)", "Bullish Only 🟢", "Bearish Only 🔴"], key="trend_f")
-    with f_col2:
-        price_filter = st.selectbox("₹ Price Range", ["All Prices", "< ₹500", "₹500 - ₹2000", "> ₹2000"], key="price_f")
-    with f_col3:
-        vol_filter = st.selectbox("⚡ Volume Spike (R.Fac)", ["All", "High Spike (> 1.5)", "Super Spike (> 3.0)"], key="vol_f")
-    with f_col4:
-        sector_filter = st.selectbox("🎯 Sector Filter", ["All Sectors"] + list(SECTOR_DATA.keys()), key="sector_f")
-    
-    # FILTER LOGIC
-    filtered_df = df_data.copy()
-    
-    if trend_filter == "Bullish Only 🟢":
-        filtered_df = filtered_df[filtered_df['Change %'] >= 0]
-    elif trend_filter == "Bearish Only 🔴":
-        filtered_df = filtered_df[filtered_df['Change %'] < 0]
-        
-    if price_filter == "< ₹500":
-        filtered_df = filtered_df[filtered_df['Price'] < 500]
-    elif price_filter == "₹500 - ₹2000":
-        filtered_df = filtered_df[(filtered_df['Price'] >= 500) & (filtered_df['Price'] <= 2000)]
-    elif price_filter == "> ₹2000":
-        filtered_df = filtered_df[filtered_df['Price'] > 2000]
-        
-    if vol_filter == "High Spike (> 1.5)":
-        filtered_df = filtered_df[filtered_df['R Fact'] >= 1.5]
-    elif vol_filter == "Super Spike (> 3.0)":
-        filtered_df = filtered_df[filtered_df['R Fact'] >= 3.0]
-        
-    if sector_filter != "All Sectors":
-        filtered_df = filtered_df[filtered_df['Sector'] == sector_filter]
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # MARKET PULSE DISPLAY CARDS
+    # TWO COLUMNS LAYOUT: Left = Breakout Beacon, Right = Intraday Boost (With Filters)
     col1, col2 = st.columns(2)
     
-    # Data Preparation for Cards
-    beacon_df = filtered_df.copy()
+    # Dynamic Market Status Indicator
+    market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
+
+    # --- LEFT COLUMN: BREAKOUT BEACON (UNFILTERED / INDEPENDENT) ---
+    beacon_df = df_data.copy()
     beacon_df['Signal %'] = (beacon_df['Change %'].abs() * 1.2).round(2)
     beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
     beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
     
     top_breakouts = beacon_df.sort_values(by='Signal %', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
-    
-    boost_df = filtered_df.copy().sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
-    boost_df['Boost_Signal'] = boost_df['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
-    boost_df['Change_Badge'] = boost_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
-    
-    # Dynamic Market Status Badge
-    market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
     with col1:
         st.markdown(f"""
@@ -277,6 +235,7 @@ if not df_data.empty:
         )
         st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
 
+    # --- RIGHT COLUMN: INTRADAY BOOST (WITH EXCLUSIVE FILTERS) ---
     with col2:
         st.markdown(f"""
         <div class="pulse-card">
@@ -284,6 +243,44 @@ if not df_data.empty:
         </div>
         """, unsafe_allow_html=True)
         
+        # FILTERS SPECIFIC TO INTRADAY BOOST ONLY
+        f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+        with f_col1:
+            trend_filter = st.selectbox("↕️ Trend", ["Neutral (All)", "Bullish Only 🟢", "Bearish Only 🔴"], key="boost_trend")
+        with f_col2:
+            price_filter = st.selectbox("₹ Price", ["All Prices", "< ₹500", "₹500 - ₹2000", "> ₹2000"], key="boost_price")
+        with f_col3:
+            vol_filter = st.selectbox("⚡ Volume", ["All", "High (> 1.5)", "Super (> 3.0)"], key="boost_vol")
+        with f_col4:
+            sector_filter = st.selectbox("🎯 Sector", ["All Sectors"] + list(SECTOR_DATA.keys()), key="boost_sector")
+        
+        # APPLY FILTERS ONLY TO INTRADAY BOOST DATA
+        boost_filtered_df = df_data.copy()
+        
+        if trend_filter == "Bullish Only 🟢":
+            boost_filtered_df = boost_filtered_df[boost_filtered_df['Change %'] >= 0]
+        elif trend_filter == "Bearish Only 🔴":
+            boost_filtered_df = boost_filtered_df[boost_filtered_df['Change %'] < 0]
+            
+        if price_filter == "< ₹500":
+            boost_filtered_df = boost_filtered_df[boost_filtered_df['Price'] < 500]
+        elif price_filter == "₹500 - ₹2000":
+            boost_filtered_df = boost_filtered_df[(boost_filtered_df['Price'] >= 500) & (boost_filtered_df['Price'] <= 2000)]
+        elif price_filter == "> ₹2000":
+            boost_filtered_df = boost_filtered_df[boost_filtered_df['Price'] > 2000]
+            
+        if vol_filter == "High (> 1.5)":
+            boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 1.5]
+        elif vol_filter == "Super (> 3.0)":
+            boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 3.0]
+            
+        if sector_filter != "All Sectors":
+            boost_filtered_df = boost_filtered_df[boost_filtered_df['Sector'] == sector_filter]
+
+        boost_df = boost_filtered_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
+        boost_df['Boost_Signal'] = boost_df['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
+        boost_df['Change_Badge'] = boost_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+
         display_boost = boost_df[['Chart', 'Change_Badge', 'R Fact', 'Boost_Signal']].rename(
             columns={'Chart': 'Symbol', 'Change_Badge': '%', 'R Fact': 'R.Fac ⚡', 'Boost_Signal': 'Signal'}
         )
