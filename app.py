@@ -77,15 +77,6 @@ st.markdown("""
         100% { transform: translate3d(-50%, 0, 0); }
     }
 
-    /* Outer Scanner Box */
-    .scanner-box {
-        background-color: #111317;
-        border: 1px solid #23272f;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 15px;
-    }
-
     /* Compact Header Row matching Image */
     .card-header-row {
         display: flex;
@@ -135,7 +126,6 @@ st.markdown("""
         font-size: 12px !important;
     }
     
-    /* Input Search Box Styling */
     div[data-baseweb="input"] > div {
         background-color: #1a1d24 !important;
         border-color: #2a2e39 !important;
@@ -171,7 +161,6 @@ st.markdown("""
         border-bottom: 1px solid #181b20;
     }
 
-    /* Signal Pills (BULL / BEAR) */
     .pill-bull {
         background-color: #c2f0c2;
         color: #155724;
@@ -195,7 +184,6 @@ st.markdown("""
         min-width: 55px;
     }
 
-    /* Percentage Oval Badges */
     .pct-pill-green {
         background-color: #c2f0c2;
         color: #0f401b;
@@ -219,7 +207,6 @@ st.markdown("""
         text-align: center;
     }
 
-    /* Symbol + Chart Button */
     .sym-flex {
         display: flex;
         align-items: center;
@@ -363,40 +350,13 @@ if page == "Market Pulse":
             elif b_trend == "Bearish 🔴":
                 b_df = b_df[b_df['Change %'] < 0]
 
-            table_html = """
-            <table class="custom-table">
-                <thead>
-                    <tr>
-                        <th>Signal</th>
-                        <th>Symbol</th>
-                        <th style="text-align:center;">%</th>
-                        <th>Signal % 🪟</th>
-                        <th>Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
-            
+            table_html = '<table class="custom-table"><thead><tr><th>Signal</th><th>Symbol</th><th style="text-align:center;">%</th><th>Signal % 🪟</th><th>Time</th></tr></thead><tbody>'
             for _, row in b_df.head(9).iterrows():
                 sig_html = '<span class="pill-bull">BULL</span>' if row['Change %'] >= 0 else '<span class="pill-bear">BEAR</span>'
                 pct_html = f'<span class="pct-pill-green">{row["Change %"]:+.2f}</span>' if row['Change %'] >= 0 else f'<span class="pct-pill-red">{row["Change %"]:.2f}</span>'
                 chart_link = f'https://in.tradingview.com/chart/?symbol=NSE:{row["Symbol"]}'
-                
-                table_html += f"""
-                <tr>
-                    <td>{sig_html}</td>
-                    <td>
-                        <div class="sym-flex">
-                            <span class="sym-text">{row['Symbol']}</span>
-                            <a href="{chart_link}" target="_blank" class="chart-icon-btn">📊+</a>
-                        </div>
-                    </td>
-                    <td style="text-align:center;">{pct_html}</td>
-                    <td class="signal-pct-text">{row['Signal %']}</td>
-                    <td class="time-text">{row['Time']}</td>
-                </tr>
-                """
-            table_html += "</tbody></table>"  # FIXED HERE (added closing /)
+                table_html += f'<tr><td>{sig_html}</td><td><div class="sym-flex"><span class="sym-text">{row["Symbol"]}</span><a href="{chart_link}" target="_blank" class="chart-icon-btn">📊+</a></div></td><td style="text-align:center;">{pct_html}</td><td class="signal-pct-text">{row["Signal %"]}</td><td class="time-text">{row["Time"]}</td></tr>'
+            table_html += '</tbody></table>'
             st.markdown(table_html, unsafe_allow_html=True)
 
         # --- 2. INTRADAY BOOST ---
@@ -431,38 +391,13 @@ if page == "Market Pulse":
             elif i_trend == "Bearish 🔴":
                 i_df = i_df[i_df['Change %'] < 0]
 
-            table_html_boost = """
-            <table class="custom-table">
-                <thead>
-                    <tr>
-                        <th>Symbol</th>
-                        <th style="text-align:center;">%</th>
-                        <th>R.Fac 🪟</th>
-                        <th style="text-align:center;">Signal</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
-            
+            table_html_boost = '<table class="custom-table"><thead><tr><th>Symbol</th><th style="text-align:center;">%</th><th>R.Fac 🪟</th><th style="text-align:center;">Signal</th></tr></thead><tbody>'
             for _, row in i_df.head(9).iterrows():
                 pct_html = f'<span class="pct-pill-green">{row["Change %"]:+.2f}</span>' if row['Change %'] >= 0 else f'<span class="pct-pill-red">{row["Change %"]:.2f}</span>'
                 arrow_html = '<span class="arrow-up">⬆</span>' if row['Change %'] >= 0 else '<span class="arrow-down">⬇</span>'
                 chart_link = f'https://in.tradingview.com/chart/?symbol=NSE:{row["Symbol"]}'
-                
-                table_html_boost += f"""
-                <tr>
-                    <td>
-                        <div class="sym-flex">
-                            <span class="sym-text">{row['Symbol']}</span>
-                            <a href="{chart_link}" target="_blank" class="chart-icon-btn">📊+</a>
-                        </div>
-                    </td>
-                    <td style="text-align:center;">{pct_html}</td>
-                    <td class="signal-pct-text">{row['R Fact']}</td>
-                    <td style="text-align:center;">{arrow_html}</td>
-                </tr>
-                """
-            table_html_boost += "</tbody></table>"  # FIXED HERE (added closing /)
+                table_html_boost += f'<tr><td><div class="sym-flex"><span class="sym-text">{row["Symbol"]}</span><a href="{chart_link}" target="_blank" class="chart-icon-btn">📊+</a></div></td><td style="text-align:center;">{pct_html}</td><td class="signal-pct-text">{row["R Fact"]}</td><td style="text-align:center;">{arrow_html}</td></tr>'
+            table_html_boost += '</tbody></table>'
             st.markdown(table_html_boost, unsafe_allow_html=True)
 
 elif page == "Sector Scope":
