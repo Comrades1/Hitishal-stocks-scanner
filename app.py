@@ -7,7 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 from datetime import datetime, time
 
 # 1. Page Configuration
-st.set_page_config(page_title="TradeFinder — Sector Scope", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="TradeFinder — Market Pulse", layout="wide", initial_sidebar_state="expanded")
 
 # --- LOGIN SYSTEM START ---
 USER_CREDENTIALS = {
@@ -38,7 +38,8 @@ if not st.session_state["authenticated"]:
     st.stop()
 # --- LOGIN SYSTEM END ---
 
-st_autorefresh(interval=30000, limit=None, key="sector_refresh")
+# Auto-refresh every 30 seconds
+st_autorefresh(interval=30000, limit=None, key="market_refresh")
 
 # --- ULTRA MODERN TRADEFINDER UI STYLING ---
 st.markdown("""
@@ -228,12 +229,16 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- 3. SIDEBAR NAVIGATION ---
+# --- 3. SIDEBAR NAVIGATION ROUTING ---
 with st.sidebar:
     st.markdown('<div class="sidebar-brand">🎯 TradeFinder</div>', unsafe_allow_html=True)
     
     st.markdown('<div class="sidebar-section">📊 Stocks</div>', unsafe_allow_html=True)
-    page = st.radio("Stocks Menu", ["Market Pulse", "Insider Strategy", "Sector Scope", "Swing Spectrum"], label_visibility="collapsed")
+    page = st.radio(
+        "Stocks Menu", 
+        ["Market Pulse", "Insider Strategy", "Sector Scope", "Swing Spectrum"], 
+        label_visibility="collapsed"
+    )
     
     st.markdown('<div class="sidebar-section">📈 Index</div>', unsafe_allow_html=True)
     st.caption("• Option Clock  |  • Index Mover")
@@ -251,13 +256,7 @@ def make_tradingview_link(symbol):
     url = f"https://in.tradingview.com/chart/?symbol=NSE:{clean_symbol}"
     return f'<a href="{url}" target="_blank" style="text-decoration:none; color:#38bdf8; font-weight:700;">📈 {clean_symbol}</a>'
 
-def is_market_open():
-    now = datetime.now()
-    if now.weekday() < 5 and time(9, 15) <= now.time() <= time(15, 30):
-        return True
-    return False
-
-# FIXED & COMPLETE SECTOR DATA
+# SECTOR DATA DICTIONARY
 SECTOR_DATA = {
     'AUTO': [
         'M&M.NS', 'MOTHERSON.NS', 'SAMVARDHANA.NS', 'MARUTI.NS', 'TATAMOTORS.NS', 
@@ -336,7 +335,6 @@ def fetch_sector_analytics():
                 prev_close = df['Close'].iloc[0]
                 pct_change = round(((current_price - prev_close) / prev_close) * 100, 2)
                 
-                # Option 1: Intraday Relative Volume
                 if not df_today.empty:
                     vol_recent = df_today['Volume'].iloc[-5:].mean()
                     vol_today_avg = df_today['Volume'].mean()
@@ -368,111 +366,127 @@ def fetch_sector_analytics():
                 
     return pd.DataFrame(all_stocks)
 
-# MAIN HEADER
-st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Market Pulse</h1>", unsafe_allow_html=True)
-
+# DATA FETCHING
 with st.spinner("Fetching Market Data..."):
     df_data = fetch_sector_analytics()
 
-if not df_data.empty:
-    col1, col2 = st.columns(2)
-    
-    # --- BREAKOUT BEACON CARD ---
-    with col1:
-        st.markdown("""
-        <div class="trade-card">
-            <div class="card-title-row">
-                <div class="card-title">🔥 BREAKOUT BEACON 💡 <span class="live-badge">LIVE</span></div>
+# ==============================================================================
+# PAGE 1: MARKET PULSE (BREAKOUT BEACON + INTRADAY BOOST)
+# ==============================================================================
+if page == "Market Pulse":
+    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Market Pulse</h1>", unsafe_allow_html=True)
+
+    if not df_data.empty:
+        col1, col2 = st.columns(2)
+        
+        # --- BREAKOUT BEACON CARD ---
+        with col1:
+            st.markdown("""
+            <div class="trade-card">
+                <div class="card-title-row">
+                    <div class="card-title">🔥 BREAKOUT BEACON 💡 <span class="live-badge">LIVE</span></div>
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        session_choice = st.selectbox(
-            "Time Window", 
-            ["🌅 Morning Session (09:15 - 11:30 AM)", "📈 Full Day / Live Market"],
-            key="beacon_session"
-        )
-        
-        beacon_df = df_data.copy()
-        if session_choice == "🌅 Morning Session (09:15 - 11:30 AM)":
-            beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
-            beacon_df['Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-pill-bull">BULL</span>' if x >= 0 else '<span class="badge-pill-bear">BEAR</span>')
-            beacon_df['Change'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
+            """, unsafe_allow_html=True)
             
-            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-            display_beacon = top_breakouts[['Signal', 'Chart', 'Change', 'Score', 'Morning_Time']].rename(
-                columns={'Chart': 'Symbol', 'Change': '%', 'Score': 'Signal %', 'Morning_Time': 'Time'}
-            )
-        else:
-            beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
-            beacon_df['Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-pill-bull">BULL</span>' if x >= 0 else '<span class="badge-pill-bear">BEAR</span>')
-            beacon_df['Change'] = beacon_df['Change %'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
-            
-            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-            display_beacon = top_breakouts[['Signal', 'Chart', 'Change', 'Score', 'Time']].rename(
-                columns={'Chart': 'Symbol', 'Change': '%', 'Score': 'Signal %'}
+            session_choice = st.selectbox(
+                "Time Window", 
+                ["🌅 Morning Session (09:15 - 11:30 AM)", "📈 Full Day / Live Market"],
+                key="beacon_session"
             )
             
-        st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
+            beacon_df = df_data.copy()
+            if session_choice == "🌅 Morning Session (09:15 - 11:30 AM)":
+                beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
+                beacon_df['Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-pill-bull">BULL</span>' if x >= 0 else '<span class="badge-pill-bear">BEAR</span>')
+                beacon_df['Change'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
+                
+                top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
+                display_beacon = top_breakouts[['Signal', 'Chart', 'Change', 'Score', 'Morning_Time']].rename(
+                    columns={'Chart': 'Symbol', 'Change': '%', 'Score': 'Signal %', 'Morning_Time': 'Time'}
+                )
+            else:
+                beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
+                beacon_df['Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-pill-bull">BULL</span>' if x >= 0 else '<span class="badge-pill-bear">BEAR</span>')
+                beacon_df['Change'] = beacon_df['Change %'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
+                
+                top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
+                display_beacon = top_breakouts[['Signal', 'Chart', 'Change', 'Score', 'Time']].rename(
+                    columns={'Chart': 'Symbol', 'Change': '%', 'Score': 'Signal %'}
+                )
+                
+            st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # --- INTRADAY BOOST CARD ---
-    with col2:
-        st.markdown("""
-        <div class="trade-card">
-            <div class="card-title-row">
-                <div class="card-title">⚡ INTRADAY BOOST 🚀 <span class="live-badge">LIVE</span></div>
+        # --- INTRADAY BOOST CARD ---
+        with col2:
+            st.markdown("""
+            <div class="trade-card">
+                <div class="card-title-row">
+                    <div class="card-title">⚡ INTRADAY BOOST 🚀 <span class="live-badge">LIVE</span></div>
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        f_col1, f_col2 = st.columns(2)
-        with f_col1:
-            trend_filter = st.selectbox("Trend", ["Neutral (All)", "Bullish Only 🟢", "Bearish Only 🔴"], key="boost_trend")
-        with f_col2:
-            vol_filter = st.selectbox("Volume Surge", ["All", "High (> 1.5)", "Super (> 3.0)"], key="boost_vol")
-        
-        boost_df = df_data.copy()
-        if trend_filter == "Bullish Only 🟢":
-            boost_df = boost_df[boost_df['Change %'] >= 0]
-        elif trend_filter == "Bearish Only 🔴":
-            boost_df = boost_df[boost_df['Change %'] < 0]
+            """, unsafe_allow_html=True)
             
-        if vol_filter == "High (> 1.5)":
-            boost_df = boost_df[boost_df['R Fact'] >= 1.5]
-        elif vol_filter == "Super (> 3.0)":
-            boost_df = boost_df[boost_df['R Fact'] >= 3.0]
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                trend_filter = st.selectbox("Trend", ["Neutral (All)", "Bullish Only 🟢", "Bearish Only 🔴"], key="boost_trend")
+            with f_col2:
+                vol_filter = st.selectbox("Volume Surge", ["All", "High (> 1.5)", "Super (> 3.0)"], key="boost_vol")
+            
+            boost_df = df_data.copy()
+            if trend_filter == "Bullish Only 🟢":
+                boost_df = boost_df[boost_df['Change %'] >= 0]
+            elif trend_filter == "Bearish Only 🔴":
+                boost_df = boost_df[boost_df['Change %'] < 0]
+                
+            if vol_filter == "High (> 1.5)":
+                boost_df = boost_df[boost_df['R Fact'] >= 1.5]
+            elif vol_filter == "Super (> 3.0)":
+                boost_df = boost_df[boost_df['R Fact'] >= 3.0]
 
-        top_boost = boost_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-        top_boost['Change'] = top_boost['Change %'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
-        top_boost['Signal'] = top_boost['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
+            top_boost = boost_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
+            top_boost['Change'] = top_boost['Change %'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
+            top_boost['Signal'] = top_boost['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
 
-        display_boost = top_boost[['Chart', 'Change', 'R Fact', 'Signal']].rename(
-            columns={'Chart': 'Symbol', 'Change': '%', 'R Fact': 'R.Fac ⚡'}
+            display_boost = top_boost[['Chart', 'Change', 'R Fact', 'Signal']].rename(
+                columns={'Chart': 'Symbol', 'Change': '%', 'R Fact': 'R.Fac ⚡'}
+            )
+            st.write(display_boost.to_html(escape=False, index=False), unsafe_allow_html=True)
+    else:
+        st.error("Market data load nahi ho pa raha hai.")
+
+# ==============================================================================
+# PAGE 2: SECTOR SCOPE (HEATMAP + SECTOR BREAKDOWN)
+# ==============================================================================
+elif page == "Sector Scope":
+    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Sector Scope</h1>", unsafe_allow_html=True)
+    if not df_data.empty:
+        fig_map = px.treemap(
+            df_data,
+            path=[px.Constant("TradeFinder"), 'Sector', 'Symbol'],
+            values='Abs Change',
+            color='Change %',
+            color_continuous_scale=['#f87171', '#0f172a', '#4ade80'],
+            color_continuous_midpoint=0,
+            custom_data=['Change %']
         )
-        st.write(display_boost.to_html(escape=False, index=False), unsafe_allow_html=True)
+        fig_map.update_traces(texttemplate="<b>%{label}</b><br>%{customdata[0]:.2f}%")
+        fig_map.update_layout(
+            template="plotly_dark", 
+            margin=dict(t=20, l=0, r=0, b=0), 
+            height=550, 
+            paper_bgcolor="#090d16", 
+            plot_bgcolor="#090d16"
+        )
+        st.plotly_chart(fig_map, use_container_width=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+# ==============================================================================
+# PAGE 3 & 4: OTHER SECTIONS
+# ==============================================================================
+elif page == "Insider Strategy":
+    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800;'>Insider Strategy</h1>", unsafe_allow_html=True)
+    st.info("🎯 High Institutional Activity & Block Deals Scanner - Coming Soon.")
 
-    # --- HEATMAP SECTION ---
-    st.markdown("<h3 style='color:#f8fafc; font-weight:700;'>📊 Sector Scope Heatmap</h3>", unsafe_allow_html=True)
-    fig_map = px.treemap(
-        df_data,
-        path=[px.Constant("TradeFinder"), 'Sector', 'Symbol'],
-        values='Abs Change',
-        color='Change %',
-        color_continuous_scale=['#f87171', '#0f172a', '#4ade80'],
-        color_continuous_midpoint=0,
-        custom_data=['Change %']
-    )
-    fig_map.update_traces(texttemplate="<b>%{label}</b><br>%{customdata[0]:.2f}%")
-    fig_map.update_layout(
-        template="plotly_dark", 
-        margin=dict(t=20, l=0, r=0, b=0), 
-        height=500, 
-        paper_bgcolor="#090d16", 
-        plot_bgcolor="#090d16"
-    )
-    st.plotly_chart(fig_map, use_container_width=True)
-
-else:
-    st.error("Market data load nahi ho pa raha hai. Please refresh karein.")
+elif page == "Swing Spectrum":
+    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800;'>Swing Spectrum</h1>", unsafe_allow_html=True)
+    st.info("📈 Multi-day Swing Trade setups & EMA Crossover Scanner - Coming Soon.")
