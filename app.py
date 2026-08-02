@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
+from datetime import datetime
 
 # 1. Page Configuration
 st.set_page_config(page_title="Sector Scope - Smart Scanner", layout="wide", initial_sidebar_state="expanded")
@@ -43,20 +44,20 @@ if st.sidebar.button("Logout"):
 # --- LOGIN SYSTEM END ---
 
 # Auto-refresh every 30 seconds
+st.sidebar.markdown("---")
 st_autorefresh(interval=30000, limit=None, key="sector_refresh")
 
-# Custom Professional UI Styling (TradingView Dark Style)
+# Custom UI Styling (Dark Mode & Market Pulse Custom Cards)
 st.markdown("""
     <style>
     .stApp { background-color: #0d1117; color: #c9d1d9; }
-    div[data-testid="stMetricValue"] { font-size: 20px; }
     
     /* Clean Table Styling */
     table {
         width: 100%;
         border-collapse: collapse;
-        margin: 15px 0;
-        font-size: 15px;
+        margin: 10px 0;
+        font-size: 14px;
         background-color: #161b22;
         border-radius: 8px;
         overflow: hidden;
@@ -65,17 +66,41 @@ st.markdown("""
         background-color: #21262d;
         color: #8b949e;
         text-align: left;
-        padding: 12px 15px;
+        padding: 10px 12px;
         font-weight: 600;
         border-bottom: 1px solid #30363d;
     }
     td {
-        padding: 10px 15px;
+        padding: 8px 12px;
         border-bottom: 1px solid #21262d;
     }
     tr:hover { background-color: #1c2128; }
     
-    /* Signal Badges Styling */
+    /* Market Pulse Card Container */
+    .pulse-card {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .pulse-header {
+        font-size: 18px;
+        font-weight: bold;
+        color: #ffffff;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    /* Custom Badges */
+    .badge-bull { background-color: #123020; color: #56d364; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px; }
+    .badge-bear { background-color: #341a1a; color: #ff7b72; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px; }
+    .badge-val-green { background-color: #0e4429; color: #3fb950; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
+    .badge-val-red { background-color: #4c1d1d; color: #f85149; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
+    
+    /* Signal Badges */
     .badge-strong-buy { background-color: #0e4429; color: #3fb950; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #238636; }
     .badge-buy { background-color: #123020; color: #56d364; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
     .badge-strong-sell { background-color: #4c1d1d; color: #f85149; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #da3633; }
@@ -131,7 +156,6 @@ def fetch_sector_analytics():
                 if df.empty or len(df) < 20:
                     continue
                 
-                # RSI aur EMA background me calculate honge
                 df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
                 df['RSI'] = calculate_rsi(df['Close'], 14)
                 
@@ -142,14 +166,14 @@ def fetch_sector_analytics():
                 ema20_val = df['EMA20'].iloc[-1]
                 rsi_val = df['RSI'].iloc[-1]
                 
-                # Relative Volume Spike Factor
+                # Volume Factor
                 vol_recent = df['Volume'].iloc[-5:].mean()
                 vol_avg = df['Volume'].mean()
                 r_fact = round((vol_recent / vol_avg), 2) if vol_avg > 0 else 1.0
                 
                 above_ema = current_price > ema20_val
                 
-                # Custom Styled Signal Badges
+                # Main Signal Logic
                 if above_ema and rsi_val > 55 and r_fact > 1.2:
                     signal = '<span class="badge-strong-buy">🚀 ⬆️ Strong Buy</span>'
                 elif above_ema and rsi_val > 50:
@@ -163,6 +187,9 @@ def fetch_sector_analytics():
                 
                 symbol_clean = ticker.replace('.NS', '')
                 
+                # Timestamp for breakout beacon
+                last_time = df.index[-1].strftime('%H:%M')
+                
                 all_stocks.append({
                     'Sector': sector,
                     'Symbol': symbol_clean,
@@ -171,21 +198,69 @@ def fetch_sector_analytics():
                     'Change %': round(pct_change, 2),
                     'Abs Change': abs(pct_change) + 0.1,
                     'R Fact': r_fact,
-                    'Signal': signal
+                    'Signal': signal,
+                    'Time': last_time,
+                    'RSI': rsi_val
                 })
             except Exception:
                 continue
                 
     return pd.DataFrame(all_stocks)
 
-# App Main Section
-st.title("💡 Sector Scope — Advanced Scanner")
+# Main Dashboard App
+st.title("💡 Sector Scope — Smart Scanner")
 
-with st.spinner("Calculating Indicators & Live Data..."):
+with st.spinner("Calculating Indicators & Live Market Scans..."):
     df_data = fetch_sector_analytics()
 
 if not df_data.empty:
-    # --- 1. SECTOR TREEMAP / HEATMAP SECTION ---
+    
+    # --- 1. MARKET PULSE SECTION (BREAKOUT BEACON & INTRADAY BOOST) ---
+    st.subheader("🔥 Market Pulse Scanners")
+    
+    col1, col2 = st.columns(2)
+    
+    # --- SCANNERS LOGIC ---
+    # Breakout Beacon: Stocks with high momentum/change %
+    beacon_df = df_data.copy()
+    beacon_df['Signal %'] = (beacon_df['Change %'].abs() * 1.2).round(2)
+    beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
+    beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+    
+    top_breakouts = beacon_df.sort_values(by='Signal %', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
+    
+    # Intraday Boost: Stocks with high Relative Volume Spike (R Fact)
+    boost_df = df_data.copy().sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
+    boost_df['Boost_Signal'] = boost_df['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
+    boost_df['Change_Badge'] = boost_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+    
+    with col1:
+        st.markdown("""
+        <div class="pulse-card">
+            <div class="pulse-header">🔥 BREAKOUT BEACON 💡 <span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Signal %', 'Time']].rename(
+            columns={'Beacon_Signal': 'Signal', 'Chart': 'Symbol', 'Change_Badge': '%', 'Signal %': 'Signal %'}
+        )
+        st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div class="pulse-card">
+            <div class="pulse-header">⚡ INTRADAY BOOST 🚀 <span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        display_boost = boost_df[['Chart', 'Change_Badge', 'R Fact', 'Boost_Signal']].rename(
+            columns={'Chart': 'Symbol', 'Change_Badge': '%', 'R Fact': 'R.Fac ⚡', 'Boost_Signal': 'Signal'}
+        )
+        st.write(display_boost.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # --- 2. SECTOR TREEMAP / HEATMAP SECTION ---
     st.subheader("🗺️ Sector Heatmap")
     
     fig_map = px.treemap(
@@ -215,7 +290,7 @@ if not df_data.empty:
 
     st.markdown("---")
 
-    # --- 2. SECTOR MOMENTUM RANKING (PROPORTIONAL SCALING -10 TO +10) ---
+    # --- 3. SECTOR MOMENTUM RANKING (-10 to +10 SCALE) ---
     sector_summary = df_data.groupby('Sector').agg(
         Avg_Change=('Change %', 'mean'),
         Bullish_Count=('Change %', lambda x: (x > 0).sum()),
@@ -225,7 +300,7 @@ if not df_data.empty:
     # Raw Score Calculation
     sector_summary['Raw_Score'] = sector_summary['Avg_Change'] * (sector_summary['Bullish_Count'] / sector_summary['Total_Count'])
 
-    # Dynamic Scaling Logic: Maps max score to 10 and min score to -10 without flattening top performers
+    # Proportional Relative Scaling
     max_val = sector_summary['Raw_Score'].abs().max()
     if max_val > 0:
         sector_summary['Strength Score'] = (sector_summary['Raw_Score'] / max_val * 10).round(2)
@@ -234,7 +309,6 @@ if not df_data.empty:
 
     sector_summary = sector_summary.sort_values(by='Strength Score', ascending=False)
 
-    # Color logic: Green for positive, Red for negative
     bar_colors = ['#00E676' if score >= 0 else '#FF1744' for score in sector_summary['Strength Score']]
 
     st.subheader("📊 Sector Momentum Ranking")
@@ -243,11 +317,11 @@ if not df_data.empty:
         go.Bar(
             x=sector_summary['Sector'],
             y=sector_summary['Strength Score'],
-            text=sector_summary['Strength Score'],  # Show exact value on top of bar
+            text=sector_summary['Strength Score'],
             textposition='outside',
             marker_color=bar_colors,
             marker_line_color=bar_colors,
-            width=0.45  # Slim sleek bars
+            width=0.45
         )
     ])
     
@@ -257,14 +331,14 @@ if not df_data.empty:
         paper_bgcolor="#0d1117",
         plot_bgcolor="#0d1117",
         xaxis=dict(
-            tickangle=0,  # Horizontal Labels
+            tickangle=0,  # Horizontal Sector Labels
             showgrid=False,
             title=None,
             tickfont=dict(size=11, color='#c9d1d9')
         ),
         yaxis=dict(
             title="Strength Score (-10 to +10)",
-            range=[-11.5, 11.5],  # Padding for text labels
+            range=[-12, 12],
             showgrid=True,
             gridcolor="#21262d",
             zeroline=True,
@@ -275,10 +349,10 @@ if not df_data.empty:
     )
     
     st.plotly_chart(fig_bar, use_container_width=True)
-    
-        
 
-    # --- 3. SECTOR DRILL-DOWN TABLE ---
+    st.markdown("---")
+
+    # --- 4. SECTOR DRILL-DOWN TABLE ---
     st.subheader("🎯 Sector Drill-down")
     selected_sector = st.selectbox("Select Sector to Inspect:", options=sector_summary['Sector'].tolist())
 
