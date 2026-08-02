@@ -114,7 +114,7 @@ def is_market_open():
         return True
     return False
 
-# EXPANDED SECTOR DATA (Added missing active stocks)
+# EXPANDED SECTOR DATA
 SECTOR_DATA = {
     'AUTO': ['ASHOKLEY.NS', 'M&M.NS', 'MOTHERSON.NS', 'FORCEMOT.NS', 'TIINDIA.NS', 'HYUNDAI.NS', 'UNOMINDA.NS', 'BAJAJ-AUTO.NS', 'EXIDEIND.NS', 'BOSCHLTD.NS', 'TVSMOTOR.NS', 'TMPV.NS', 'TATAMOTORS.NS', 'EICHERMOT.NS', 'BHARATFORG.NS'],
     'FIN SERVICE': ['BAJFINANCE.NS', 'BAJAJFINSV.NS', 'MUTHOOTFIN.NS', 'CHOLAFIN.NS', 'JIOFIN.NS', 'LICHSGFIN.NS', 'BSE.NS', 'PFC.NS'],
@@ -157,7 +157,7 @@ def fetch_sector_analytics():
                 df['RSI'] = calculate_rsi(df['Close'], 14)
                 
                 today_date = df.index[-1].date()
-                df_today = df[df.index.date == today_date]
+                df_today = df[df.index.date == today_date].copy()
                 
                 morning_change = 0.0
                 morning_vol_spike = 1.0
@@ -166,29 +166,46 @@ def fetch_sector_analytics():
                 if not df_today.empty:
                     open_price = df_today['Open'].iloc[0]
                     
-                    # Calculate percentage gain from open and volume ratio
-                    df_today['Pct_From_Open'] = ((df_today['High'] - open_price) / open_price) * 100
+                    # 1. VWAP Calculation
+                    df_today['VWAP'] = (df_today['Volume'] * (df_today['High'] + df_today['Low'] + df_today['Close']) / 3).cumsum() / df_today['Volume'].cumsum()
+                    
+                    # 2. Percentage Gain & Volume Ratio
+                    df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
                     mean_vol = df_today['Volume'].mean()
                     df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
                     
+                    # 3. Continuous Volume Spike (2-Candle Rolling Avg)
+                    df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2).mean()
+                    
                     df_morning = df_today.between_time('09:15', '10:30')
                     
-                    # LOGIC FIX: Find the FIRST candle that triggered breakout (Gain >= 1.0% or Vol Ratio >= 1.3)
-                    breakout_candles = df_morning[(df_morning['Pct_From_Open'].abs() >= 1.0) | (df_morning['Vol_Ratio'] >= 1.3)]
+                    # --- REAL MOMENTUM FILTER (Price > VWAP + Gain >= 1.5% + Sustained Vol >= 1.8x) ---
+                    strong_breakouts = df_morning[
+                        (df_morning['Close'] > df_morning['VWAP']) & 
+                        (df_morning['Pct_From_Open'].abs() >= 1.5) & 
+                        (df_morning['Rolling_Vol_Ratio'] >= 1.8)
+                    ]
                     
-                    if not breakout_candles.empty:
-                        first_dt = breakout_candles.index[0]
+                    if not strong_breakouts.empty:
+                        first_dt = strong_breakouts.index[0]
                         first_breakout_time = first_dt.strftime('%H:%M') if hasattr(first_dt, 'strftime') else str(first_dt)[11:16]
-                        morning_change = breakout_candles['Pct_From_Open'].iloc[0]
-                        morning_vol_spike = round(breakout_candles['Vol_Ratio'].iloc[0], 2)
+                        morning_change = strong_breakouts['Pct_From_Open'].iloc[0]
+                        morning_vol_spike = round(strong_breakouts['Rolling_Vol_Ratio'].iloc[0], 2)
                     else:
-                        if not df_morning.empty:
+                        # Secondary Fallback for Moderate Movers
+                        moderate_breakouts = df_morning[(df_morning['Pct_From_Open'].abs() >= 1.2) & (df_morning['Vol_Ratio'] >= 1.4)]
+                        if not moderate_breakouts.empty:
+                            first_dt = moderate_breakouts.index[0]
+                            first_breakout_time = first_dt.strftime('%H:%M') if hasattr(first_dt, 'strftime') else str(first_dt)[11:16]
+                            morning_change = moderate_breakouts['Pct_From_Open'].iloc[0]
+                            morning_vol_spike = round(moderate_breakouts['Vol_Ratio'].iloc[0], 2)
+                        elif not df_morning.empty:
                             morning_max = df_morning['High'].max()
                             morning_change = ((morning_max - open_price) / open_price) * 100
                             max_dt = df_morning['High'].idxmax()
                             first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
 
-                # Current / Closing Data
+                # Current Data
                 current_price = df['Close'].iloc[-1]
                 prev_close = df['Close'].iloc[0]
                 pct_change = ((current_price - prev_close) / prev_close) * 100
@@ -239,7 +256,7 @@ def fetch_sector_analytics():
 
 st.title("💡 Sector Scope — Smart Scanner")
 
-with st.spinner("Calculating Indicators & Live Market Scans..."):
+with st.spinner("Calculating Momentum Indicators & Live Market Scans..."):
     df_data = fetch_sector_analytics()
 
 if not df_data.empty:
@@ -250,7 +267,7 @@ if not df_data.empty:
     
     market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
-    # --- LEFT COLUMN: BREAKOUT BEACON (WITH TIME SESSION TOGGLE & FIRST BREAKOUT TIME) ---
+    # --- LEFT COLUMN: BREAKOUT BEACON ---
     with col1:
         st.markdown(f"""
         <div class="pulse-card">
@@ -299,7 +316,7 @@ if not df_data.empty:
             
         st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # --- RIGHT COLUMN: INTRADAY BOOST (WITH EXCLUSIVE FILTERS) ---
+    # --- RIGHT COLUMN: INTRADAY BOOST ---
     with col2:
         st.markdown(f"""
         <div class="pulse-card">
