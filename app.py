@@ -210,10 +210,10 @@ def fetch_sector_analytics():
                             max_dt = df_morning['High'].idxmax()
                             first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
 
-                # Current metrics
+                # Current metrics with EXACT ROUNDING FIX
                 current_price = df['Close'].iloc[-1]
                 prev_close = df['Close'].iloc[0]
-                pct_change = ((current_price - prev_close) / prev_close) * 100
+                pct_change = round(((current_price - prev_close) / prev_close) * 100, 2)
                 
                 ema20_val = df['EMA20'].iloc[-1]
                 rsi_val = df['RSI'].iloc[-1]
@@ -244,7 +244,7 @@ def fetch_sector_analytics():
                     'Symbol': symbol_clean,
                     'Chart': make_tradingview_link(symbol_clean),
                     'Price': round(current_price, 2),
-                    'Change %': round(pct_change, 2),
+                    'Change %': pct_change,
                     'Abs Change': abs(pct_change) + 0.1,
                     'R Fact': r_fact,
                     'Signal': signal,
@@ -371,8 +371,8 @@ if not df_data.empty:
 
     st.markdown("---")
 
-    # --- 2. SECTOR HEATMAP ---
-    st.subheader("🗺️ Sector Heatmap")
+    # --- 2. SECTOR HEATMAP (FIXED PRECISION TEMPLATE) ---
+    st.subheader("MAP Sector Heatmap")
     fig_map = px.treemap(
         df_data,
         path=[px.Constant("Sector Scope"), 'Sector', 'Symbol'],
@@ -382,8 +382,17 @@ if not df_data.empty:
         color_continuous_midpoint=0,
         custom_data=['Change %']
     )
-    fig_map.update_traces(texttemplate="<b>%{label}</b><br>%{customdata[0]:+.2f}%")
-    fig_map.update_layout(template="plotly_dark", margin=dict(t=30, l=10, r=10, b=10), height=550, paper_bgcolor="#0d1117", plot_bgcolor="#0d1117")
+    # Strictly format customdata to 2 decimals cleanly
+    fig_map.update_traces(
+        texttemplate="<b>%{label}</b><br>%{customdata[0]:.2f}%"
+    )
+    fig_map.update_layout(
+        template="plotly_dark", 
+        margin=dict(t=30, l=10, r=10, b=10), 
+        height=550, 
+        paper_bgcolor="#0d1117", 
+        plot_bgcolor="#0d1117"
+    )
     st.plotly_chart(fig_map, use_container_width=True)
 
     st.markdown("---")
