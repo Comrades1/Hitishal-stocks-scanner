@@ -115,14 +115,18 @@ def fetch_sector_analytics():
                 r_fact = round((vol_recent / vol_avg), 2) if vol_avg > 0 else 1.0
                 
                 above_ema = current_price > ema20_val
+                
+                # --- Custom Signal Logic ---
                 if above_ema and rsi_val > 55 and r_fact > 1.2:
-                    signal = '🚀 Super Bullish'
+                    signal = '🚀 ⬆️ Strong Buy'
                 elif above_ema and rsi_val > 50:
-                    signal = '🟢 Bullish (Above EMA)'
+                    signal = '⬆️ Buy'
+                elif not above_ema and rsi_val < 40 and r_fact > 1.2:
+                    signal = '🚀 ⬇️ Strong Sell'
                 elif not above_ema and rsi_val < 45:
-                    signal = '🔴 Bearish (Below EMA)'
+                    signal = '⬇️ Sell'
                 else:
-                    signal = '🟡 Neutral / Sideways'
+                    signal = '❌ Hold'
                 
                 symbol_clean = ticker.replace('.NS', '')
                 
