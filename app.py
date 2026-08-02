@@ -177,7 +177,8 @@ def fetch_sector_analytics():
                     # 3. Continuous Volume Spike (2-Candle Rolling Avg)
                     df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2).mean()
                     
-                    df_morning = df_today.between_time('09:15', '10:30')
+                    # UPDATED TIME WINDOW: 09:15 to 11:30 AM
+                    df_morning = df_today.between_time('09:15', '11:30')
                     
                     # --- REAL MOMENTUM FILTER (Price > VWAP + Gain >= 1.5% + Sustained Vol >= 1.8x) ---
                     strong_breakouts = df_morning[
@@ -277,13 +278,13 @@ if not df_data.empty:
         
         session_choice = st.selectbox(
             "⏱️ Select Time Window", 
-            ["🌅 Morning Session (09:15 - 10:30 AM)", "📈 Full Day / Live Market"],
+            ["🌅 Morning Session (09:15 - 11:30 AM)", "📈 Full Day / Live Market"],
             key="beacon_session"
         )
         
         beacon_df = df_data.copy()
         
-        if session_choice == "🌅 Morning Session (09:15 - 10:30 AM)":
+        if session_choice == "🌅 Morning Session (09:15 - 11:30 AM)":
             beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
             beacon_df['Beacon_Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
             beacon_df['Change_Badge'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
