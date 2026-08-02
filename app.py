@@ -114,15 +114,16 @@ def is_market_open():
         return True
     return False
 
+# EXPANDED SECTOR DATA (Added missing active stocks)
 SECTOR_DATA = {
-    'AUTO': ['TATAMOTORS.NS', 'M&M.NS', 'BAJAJ-AUTO.NS', 'HEROMOTOCO.NS', 'EICHERMOT.NS', 'ASHOKLEY.NS', 'TVSMOTOR.NS', 'BHARATFORG.NS'],
+    'AUTO': ['ASHOKLEY.NS', 'M&M.NS', 'MOTHERSON.NS', 'FORCEMOT.NS', 'TIINDIA.NS', 'HYUNDAI.NS', 'UNOMINDA.NS', 'BAJAJ-AUTO.NS', 'EXIDEIND.NS', 'BOSCHLTD.NS', 'TVSMOTOR.NS', 'TMPV.NS', 'TATAMOTORS.NS', 'EICHERMOT.NS', 'BHARATFORG.NS'],
     'FIN SERVICE': ['BAJFINANCE.NS', 'BAJAJFINSV.NS', 'MUTHOOTFIN.NS', 'CHOLAFIN.NS', 'JIOFIN.NS', 'LICHSGFIN.NS', 'BSE.NS', 'PFC.NS'],
     'NIFTY 50': ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'TCS.NS', 'ITC.NS', 'LT.NS', 'AXISBANK.NS'],
     'SENSEX': ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'TCS.NS', 'BHARTIARTL.NS', 'SBIN.NS', 'KOTAKBANK.NS'],
     'ENERGY': ['RELIANCE.NS', 'NTPC.NS', 'POWERGRID.NS', 'ONGC.NS', 'GAIL.NS', 'BPCL.NS', 'TATAPOWER.NS', 'SUZLON.NS'],
     'PHARMA': ['SUNPHARMA.NS', 'CIPLA.NS', 'DRREDDY.NS', 'DIVISLAB.NS', 'LUPIN.NS', 'ZYDUSLIFE.NS', 'TORNTPHARM.NS', 'MANKIND.NS'],
     'IT': ['TCS.NS', 'INFY.NS', 'HCLTECH.NS', 'WIPRO.NS', 'TECHM.NS', 'LTIM.NS', 'COFORGE.NS', 'PERSISTENT.NS'],
-    'NIFTY MID SELECT': ['FEDERALBNK.NS', 'IDFCFIRSTB.NS', 'AUROPHARMA.NS', 'PERSISTENT.NS', 'COFORGE.NS', 'ASHOKLEY.NS', 'POLYCAB.NS', 'CUMMINSIND.NS'],
+    'NIFTY MID SELECT': ['FEDERALBNK.NS', 'IDFCFIRSTB.NS', 'AUROPHARMA.NS', 'PERSISTENT.NS', 'COFORGE.NS', 'POLYCAB.NS', 'CUMMINSIND.NS'],
     'BANK': ['HDFCBANK.NS', 'ICICIBANK.NS', 'SBIN.NS', 'KOTAKBANK.NS', 'AXISBANK.NS', 'INDUSINDBK.NS', 'PNB.NS', 'BANKBARODA.NS'],
     'PSU BANK': ['SBIN.NS', 'PNB.NS', 'BANKBARODA.NS', 'CANBK.NS', 'UNIONBANK.NS', 'IOB.NS', 'CENTRALBK.NS', 'MAHABANK.NS'],
     'PVT BANK': ['HDFCBANK.NS', 'ICICIBANK.NS', 'KOTAKBANK.NS', 'AXISBANK.NS', 'INDUSINDBK.NS', 'FEDERALBNK.NS', 'IDFCFIRSTB.NS', 'BANDHANBNK.NS'],
@@ -155,29 +156,39 @@ def fetch_sector_analytics():
                 df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
                 df['RSI'] = calculate_rsi(df['Close'], 14)
                 
-                # --- MORNING DATA (09:15 AM - 10:30 AM) ---
                 today_date = df.index[-1].date()
                 df_today = df[df.index.date == today_date]
-                df_morning = df_today.between_time('09:15', '10:30') if not df_today.empty else pd.DataFrame()
                 
                 morning_change = 0.0
                 morning_vol_spike = 1.0
-                morning_high_time = "09:15"
+                first_breakout_time = "09:15"
                 
-                if not df_morning.empty:
+                if not df_today.empty:
                     open_price = df_today['Open'].iloc[0]
-                    morning_max = df_morning['High'].max()
-                    morning_change = ((morning_max - open_price) / open_price) * 100
                     
-                    morning_high_time_dt = df_morning['High'].idxmax()
-                    morning_high_time = morning_high_time_dt.strftime('%H:%M') if hasattr(morning_high_time_dt, 'strftime') else str(morning_high_time_dt)[11:16]
+                    # Calculate percentage gain from open and volume ratio
+                    df_today['Pct_From_Open'] = ((df_today['High'] - open_price) / open_price) * 100
+                    mean_vol = df_today['Volume'].mean()
+                    df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
                     
-                    avg_vol = df_today['Volume'].mean()
-                    morning_vol = df_morning['Volume'].mean()
-                    if avg_vol > 0:
-                        morning_vol_spike = round(morning_vol / avg_vol, 2)
+                    df_morning = df_today.between_time('09:15', '10:30')
+                    
+                    # LOGIC FIX: Find the FIRST candle that triggered breakout (Gain >= 1.0% or Vol Ratio >= 1.3)
+                    breakout_candles = df_morning[(df_morning['Pct_From_Open'].abs() >= 1.0) | (df_morning['Vol_Ratio'] >= 1.3)]
+                    
+                    if not breakout_candles.empty:
+                        first_dt = breakout_candles.index[0]
+                        first_breakout_time = first_dt.strftime('%H:%M') if hasattr(first_dt, 'strftime') else str(first_dt)[11:16]
+                        morning_change = breakout_candles['Pct_From_Open'].iloc[0]
+                        morning_vol_spike = round(breakout_candles['Vol_Ratio'].iloc[0], 2)
+                    else:
+                        if not df_morning.empty:
+                            morning_max = df_morning['High'].max()
+                            morning_change = ((morning_max - open_price) / open_price) * 100
+                            max_dt = df_morning['High'].idxmax()
+                            first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
 
-                # --- LATEST DATA ---
+                # Current / Closing Data
                 current_price = df['Close'].iloc[-1]
                 prev_close = df['Close'].iloc[0]
                 pct_change = ((current_price - prev_close) / prev_close) * 100
@@ -218,7 +229,7 @@ def fetch_sector_analytics():
                     'Signal': signal,
                     'Time': formatted_time,
                     'Morning_Change': round(morning_change, 2),
-                    'Morning_Time': morning_high_time,
+                    'Morning_Time': first_breakout_time,
                     'Morning_Vol_Spike': morning_vol_spike
                 })
             except Exception:
@@ -239,7 +250,7 @@ if not df_data.empty:
     
     market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
-    # --- LEFT COLUMN: BREAKOUT BEACON (WITH TIME SESSION TOGGLE) ---
+    # --- LEFT COLUMN: BREAKOUT BEACON (WITH TIME SESSION TOGGLE & FIRST BREAKOUT TIME) ---
     with col1:
         st.markdown(f"""
         <div class="pulse-card">
@@ -247,7 +258,6 @@ if not df_data.empty:
         </div>
         """, unsafe_allow_html=True)
         
-        # TIME SESSION FILTER FOR BEACON
         session_choice = st.selectbox(
             "⏱️ Select Time Window", 
             ["🌅 Morning Session (09:15 - 10:30 AM)", "📈 Full Day / Live Market"],
@@ -261,14 +271,14 @@ if not df_data.empty:
             beacon_df['Beacon_Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
             beacon_df['Change_Badge'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
             
-            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
-            display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Morning_Time', 'Morning_Vol_Spike']].rename(
+            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
+            display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Score', 'Morning_Time']].rename(
                 columns={
                     'Beacon_Signal': 'Signal', 
                     'Chart': 'Symbol', 
-                    'Change_Badge': 'Morn %', 
-                    'Morning_Time': 'Peak Time',
-                    'Morning_Vol_Spike': 'Vol Spike ⚡'
+                    'Change_Badge': '%', 
+                    'Score': 'Signal %',
+                    'Morning_Time': 'Time'
                 }
             )
         else:
@@ -276,7 +286,7 @@ if not df_data.empty:
             beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
             beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
             
-            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
+            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
             display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Score', 'Time']].rename(
                 columns={
                     'Beacon_Signal': 'Signal', 
@@ -329,7 +339,7 @@ if not df_data.empty:
         if sector_filter != "All Sectors":
             boost_filtered_df = boost_filtered_df[boost_filtered_df['Sector'] == sector_filter]
 
-        boost_df = boost_filtered_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
+        boost_df = boost_filtered_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
         boost_df['Boost_Signal'] = boost_df['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
         boost_df['Change_Badge'] = boost_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
 
