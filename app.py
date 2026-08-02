@@ -192,14 +192,17 @@ if not df_data.empty:
         path=[px.Constant("Sector Scope"), 'Sector', 'Symbol'],
         values='Abs Change',
         color='Change %',
-        color_continuous_scale=['#FF1744', '#1c2128', '#00E676'], # Deep Red -> Dark Gray -> Bright Neon Green
-        color_continuous_midpoint=0
+        color_continuous_scale=['#FF1744', '#1c2128', '#00E676'], # Red -> Dark -> Green
+        color_continuous_midpoint=0,
+        custom_data=['Change %']
     )
     
+    # Correct Syntax for Treemap Labels & Custom Data
     fig_map.update_traces(
-        textinfo="label+value",
-        texttemplate="<b>%{label}</b><br>%{color:.2f}%"
+        texttemplate="<b>%{label}</b><br>%{customdata[0]:+.2f}%",
+        hovertemplate="<b>%{label}</b><br>Change: %{customdata[0]:+.2f}%<extra></extra>"
     )
+    
     fig_map.update_layout(
         template="plotly_dark",
         margin=dict(t=30, l=10, r=10, b=10),
@@ -254,4 +257,3 @@ if not df_data.empty:
 
 else:
     st.error("Data fetch nahi ho raha hai, thodi der baad refresh karein.")
-    
