@@ -231,19 +231,18 @@ if not df_data.empty:
         x='Sector', 
         y='Strength Score',
         color='Strength Score',
-        color_continuous_scale=['#FF1744', '#00E676'],
+        color_continuous_scale=['#FF1744', '#21262d', '#00E676'], # Red (Negative) -> Neutral -> Bright Green (Positive)
+        color_continuous_midpoint=0, # Exact 0 point for Green/Red separation
         text='Strength Score'
     )
     fig_bar.update_layout(
         template="plotly_dark", 
-        height=350, 
+        height=380, 
         coloraxis_showscale=False,
         paper_bgcolor="#0d1117",
         plot_bgcolor="#0d1117"
     )
     st.plotly_chart(fig_bar, use_container_width=True)
-
-    st.markdown("---")
 
     # --- 3. SECTOR DRILL-DOWN TABLE ---
     st.subheader("🎯 Sector Drill-down")
