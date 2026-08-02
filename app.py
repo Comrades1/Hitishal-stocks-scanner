@@ -44,10 +44,42 @@ if st.sidebar.button("Logout"):
 # Auto-refresh every 30 seconds
 st_autorefresh(interval=30000, limit=None, key="sector_refresh")
 
+# Custom Professional UI Styling (TradingView Dark Style)
 st.markdown("""
     <style>
-    .stApp { background-color: #0e1117; color: #ffffff; }
+    .stApp { background-color: #0d1117; color: #c9d1d9; }
     div[data-testid="stMetricValue"] { font-size: 20px; }
+    
+    /* Clean Table Styling */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 15px 0;
+        font-size: 15px;
+        background-color: #161b22;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    th {
+        background-color: #21262d;
+        color: #8b949e;
+        text-align: left;
+        padding: 12px 15px;
+        font-weight: 600;
+        border-bottom: 1px solid #30363d;
+    }
+    td {
+        padding: 10px 15px;
+        border-bottom: 1px solid #21262d;
+    }
+    tr:hover { background-color: #1c2128; }
+    
+    /* Signal Badges Styling */
+    .badge-strong-buy { background-color: #0e4429; color: #3fb950; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #238636; }
+    .badge-buy { background-color: #123020; color: #56d364; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
+    .badge-strong-sell { background-color: #4c1d1d; color: #f85149; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #da3633; }
+    .badge-sell { background-color: #341a1a; color: #ff7b72; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
+    .badge-hold { background-color: #21262d; color: #8b949e; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -55,7 +87,7 @@ st.markdown("""
 def make_tradingview_link(symbol):
     clean_symbol = str(symbol).replace('.NS', '').replace('.BO', '').strip()
     url = f"https://in.tradingview.com/chart/?symbol=NSE:{clean_symbol}"
-    return f'<a href="{url}" target="_blank" style="text-decoration:none; color:#1E88E5; font-weight:bold;">{clean_symbol} ↗</a>'
+    return f'<a href="{url}" target="_blank" style="text-decoration:none; color:#58a6ff; font-weight:bold;">{clean_symbol} ↗</a>'
 
 # 2. Sector & Stock Mappings
 SECTOR_DATA = {
@@ -116,17 +148,17 @@ def fetch_sector_analytics():
                 
                 above_ema = current_price > ema20_val
                 
-                # Custom Signal Logic
+                # Custom Styled Signal Badges
                 if above_ema and rsi_val > 55 and r_fact > 1.2:
-                    signal = '🚀 ⬆️ Strong Buy'
+                    signal = '<span class="badge-strong-buy">🚀 ⬆️ Strong Buy</span>'
                 elif above_ema and rsi_val > 50:
-                    signal = '⬆️ Buy'
+                    signal = '<span class="badge-buy">⬆️ Buy</span>'
                 elif not above_ema and rsi_val < 40 and r_fact > 1.2:
-                    signal = '🚀 ⬇️ Strong Sell'
+                    signal = '<span class="badge-strong-sell">🚀 ⬇️ Strong Sell</span>'
                 elif not above_ema and rsi_val < 45:
-                    signal = '⬇️ Sell'
+                    signal = '<span class="badge-sell">⬇️ Sell</span>'
                 else:
-                    signal = '❌ Hold'
+                    signal = '<span class="badge-hold">❌ Hold</span>'
                 
                 symbol_clean = ticker.replace('.NS', '')
                 
@@ -136,7 +168,7 @@ def fetch_sector_analytics():
                     'Chart': make_tradingview_link(symbol_clean),
                     'Price': round(current_price, 2),
                     'Change %': round(pct_change, 2),
-                    'Abs Change': abs(pct_change) + 0.1,  # Size factor for Treemap
+                    'Abs Change': abs(pct_change) + 0.1,
                     'R Fact': r_fact,
                     'Signal': signal
                 })
@@ -160,9 +192,8 @@ if not df_data.empty:
         path=[px.Constant("Sector Scope"), 'Sector', 'Symbol'],
         values='Abs Change',
         color='Change %',
-        color_continuous_scale=['#e53935', '#43a047'], # Red to Green
-        color_continuous_midpoint=0,
-        hover_data=['Price', 'Change %', 'Signal']
+        color_continuous_scale=['#FF1744', '#1c2128', '#00E676'], # Deep Red -> Dark Gray -> Bright Neon Green
+        color_continuous_midpoint=0
     )
     
     fig_map.update_traces(
@@ -172,7 +203,9 @@ if not df_data.empty:
     fig_map.update_layout(
         template="plotly_dark",
         margin=dict(t=30, l=10, r=10, b=10),
-        height=550
+        height=550,
+        paper_bgcolor="#0d1117",
+        plot_bgcolor="#0d1117"
     )
     
     st.plotly_chart(fig_map, use_container_width=True)
@@ -195,10 +228,16 @@ if not df_data.empty:
         x='Sector', 
         y='Strength Score',
         color='Strength Score',
-        color_continuous_scale=['#ef5350', '#26a69a'],
+        color_continuous_scale=['#FF1744', '#00E676'],
         text='Strength Score'
     )
-    fig_bar.update_layout(template="plotly_dark", height=350, coloraxis_showscale=False)
+    fig_bar.update_layout(
+        template="plotly_dark", 
+        height=350, 
+        coloraxis_showscale=False,
+        paper_bgcolor="#0d1117",
+        plot_bgcolor="#0d1117"
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
 
     st.markdown("---")
@@ -215,3 +254,4 @@ if not df_data.empty:
 
 else:
     st.error("Data fetch nahi ho raha hai, thodi der baad refresh karein.")
+    
