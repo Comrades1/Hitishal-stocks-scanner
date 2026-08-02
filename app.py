@@ -116,7 +116,7 @@ def fetch_sector_analytics():
                 
                 above_ema = current_price > ema20_val
                 
-                # --- Custom Signal Logic ---
+                # Custom Signal Logic
                 if above_ema and rsi_val > 55 and r_fact > 1.2:
                     signal = '🚀 ⬆️ Strong Buy'
                 elif above_ema and rsi_val > 50:
@@ -136,6 +136,7 @@ def fetch_sector_analytics():
                     'Chart': make_tradingview_link(symbol_clean),
                     'Price': round(current_price, 2),
                     'Change %': round(pct_change, 2),
+                    'Abs Change': abs(pct_change) + 0.1,  # Size factor for Treemap
                     'R Fact': r_fact,
                     'Signal': signal
                 })
@@ -151,24 +152,34 @@ with st.spinner("Calculating Indicators & Live Data..."):
     df_data = fetch_sector_analytics()
 
 if not df_data.empty:
-    # --- TOP BREAKOUT SECTION (>2% GAINERS) ---
-    st.subheader("🔥 Top Momentum Breakouts (> +2.0% Movers)")
+    # --- 1. SECTOR TREEMAP / HEATMAP SECTION ---
+    st.subheader("🗺️ Sector Heatmap")
     
-    min_gain = st.slider("Minimum Gain Threshold (%):", min_value=1.0, max_value=5.0, value=2.0, step=0.5)
+    fig_map = px.treemap(
+        df_data,
+        path=[px.Constant("Sector Scope"), 'Sector', 'Symbol'],
+        values='Abs Change',
+        color='Change %',
+        color_continuous_scale=['#e53935', '#43a047'], # Red to Green
+        color_continuous_midpoint=0,
+        hover_data=['Price', 'Change %', 'Signal']
+    )
     
-    top_movers = df_data[df_data['Change %'] >= min_gain].sort_values(by='Change %', ascending=False)
+    fig_map.update_traces(
+        textinfo="label+value",
+        texttemplate="<b>%{label}</b><br>%{color:.2f}%"
+    )
+    fig_map.update_layout(
+        template="plotly_dark",
+        margin=dict(t=30, l=10, r=10, b=10),
+        height=550
+    )
     
-    if not top_movers.empty:
-        st.success(f"Total **{len(top_movers)} stocks** moving above +{min_gain}% right now!")
-        
-        display_top = top_movers[['Sector', 'Chart', 'Price', 'Change %', 'R Fact', 'Signal']].rename(columns={'Chart': 'Symbol ↗'})
-        st.write(display_top.to_html(escape=False, index=False), unsafe_allow_html=True)
-    else:
-        st.info(f"Abhi koi bhi stock +{min_gain}% se zyada move nahi kar raha hai.")
+    st.plotly_chart(fig_map, use_container_width=True)
 
     st.markdown("---")
 
-    # Sector Ranking
+    # --- 2. SECTOR MOMENTUM RANKING ---
     sector_summary = df_data.groupby('Sector').agg(
         Avg_Change=('Change %', 'mean'),
         Bullish_Count=('Change %', lambda x: (x > 0).sum()),
@@ -192,19 +203,11 @@ if not df_data.empty:
 
     st.markdown("---")
 
-    # Sector Drill-down Table
+    # --- 3. SECTOR DRILL-DOWN TABLE ---
     st.subheader("🎯 Sector Drill-down")
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        selected_sector = st.selectbox("Select Sector to Inspect:", options=sector_summary['Sector'].tolist())
-    with col2:
-        only_high_movers = st.checkbox(f"Show only >+{min_gain}% Gainers", value=False)
+    selected_sector = st.selectbox("Select Sector to Inspect:", options=sector_summary['Sector'].tolist())
 
     sector_stocks = df_data[df_data['Sector'] == selected_sector]
-    
-    if only_high_movers:
-        sector_stocks = sector_stocks[sector_stocks['Change %'] >= min_gain]
 
     display_sector = sector_stocks[['Chart', 'Price', 'Change %', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
     
