@@ -155,10 +155,9 @@ def fetch_sector_analytics():
                 df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
                 df['RSI'] = calculate_rsi(df['Close'], 14)
                 
-                # --- MORNING DATA EXTRACTION (9:15 AM - 10:30 AM) ---
+                # --- MORNING DATA (09:15 AM - 10:30 AM) ---
                 today_date = df.index[-1].date()
                 df_today = df[df.index.date == today_date]
-                
                 df_morning = df_today.between_time('09:15', '10:30') if not df_today.empty else pd.DataFrame()
                 
                 morning_change = 0.0
@@ -240,31 +239,54 @@ if not df_data.empty:
     
     market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
-    # --- LEFT COLUMN: BREAKOUT BEACON (MORNING SESSION: 9:15 - 10:30 AM) ---
-    beacon_df = df_data.copy()
-    
-    beacon_df['Morning_Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
-    beacon_df['Beacon_Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
-    beacon_df['Change_Badge'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
-    
-    top_breakouts = beacon_df.sort_values(by='Morning_Score', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
-
+    # --- LEFT COLUMN: BREAKOUT BEACON (WITH TIME SESSION TOGGLE) ---
     with col1:
         st.markdown(f"""
         <div class="pulse-card">
-            <div class="pulse-header">🔥 BREAKOUT BEACON 💡 <span style="font-size:11px; color:#8b949e;">(Morning 9:15-10:30 AM)</span> {market_badge}</div>
+            <div class="pulse-header">🔥 BREAKOUT BEACON 💡 {market_badge}</div>
         </div>
         """, unsafe_allow_html=True)
         
-        display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Morning_Time', 'Morning_Vol_Spike']].rename(
-            columns={
-                'Beacon_Signal': 'Signal', 
-                'Chart': 'Symbol', 
-                'Change_Badge': 'Morn %', 
-                'Morning_Time': 'Peak Time',
-                'Morning_Vol_Spike': 'Vol Spike ⚡'
-            }
+        # TIME SESSION FILTER FOR BEACON
+        session_choice = st.selectbox(
+            "⏱️ Select Time Window", 
+            ["🌅 Morning Session (09:15 - 10:30 AM)", "📈 Full Day / Live Market"],
+            key="beacon_session"
         )
+        
+        beacon_df = df_data.copy()
+        
+        if session_choice == "🌅 Morning Session (09:15 - 10:30 AM)":
+            beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
+            beacon_df['Beacon_Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
+            beacon_df['Change_Badge'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+            
+            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
+            display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Morning_Time', 'Morning_Vol_Spike']].rename(
+                columns={
+                    'Beacon_Signal': 'Signal', 
+                    'Chart': 'Symbol', 
+                    'Change_Badge': 'Morn %', 
+                    'Morning_Time': 'Peak Time',
+                    'Morning_Vol_Spike': 'Vol Spike ⚡'
+                }
+            )
+        else:
+            beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
+            beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
+            beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+            
+            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
+            display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Score', 'Time']].rename(
+                columns={
+                    'Beacon_Signal': 'Signal', 
+                    'Chart': 'Symbol', 
+                    'Change_Badge': '%', 
+                    'Score': 'Signal %',
+                    'Time': 'Time'
+                }
+            )
+            
         st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
 
     # --- RIGHT COLUMN: INTRADAY BOOST (WITH EXCLUSIVE FILTERS) ---
