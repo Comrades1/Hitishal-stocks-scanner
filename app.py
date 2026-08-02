@@ -114,9 +114,14 @@ def is_market_open():
         return True
     return False
 
-# EXPANDED SECTOR DATA
+# FIXED & COMPLETE SECTOR DATA
 SECTOR_DATA = {
-    'AUTO': ['ASHOKLEY.NS', 'M&M.NS', 'MOTHERSON.NS', 'FORCEMOT.NS', 'TIINDIA.NS', 'HYUNDAI.NS', 'UNOMINDA.NS', 'BAJAJ-AUTO.NS', 'EXIDEIND.NS', 'BOSCHLTD.NS', 'TVSMOTOR.NS', 'TMPV.NS', 'TATAMOTORS.NS', 'EICHERMOT.NS', 'BHARATFORG.NS'],
+    'AUTO': [
+        'M&M.NS', 'MOTHERSON.NS', 'SAMVARDHANA.NS', 'MARUTI.NS', 'TATAMOTORS.NS', 
+        'BAJAJ-AUTO.NS', 'HEROMOTOCO.NS', 'TVSMOTOR.NS', 'EICHERMOT.NS', 'ASHOKLEY.NS', 
+        'BHARATFORG.NS', 'BOSCHLTD.NS', 'UNOMINDA.NS', 'TIINDIA.NS', 'EXIDEIND.NS', 
+        'BALKRISIND.NS', 'APOLLOTYRE.NS', 'MRF.NS', 'SONACOMS.NS', 'FORCEMOT.NS', 'HYUNDAI.NS'
+    ],
     'FIN SERVICE': ['BAJFINANCE.NS', 'BAJAJFINSV.NS', 'MUTHOOTFIN.NS', 'CHOLAFIN.NS', 'JIOFIN.NS', 'LICHSGFIN.NS', 'BSE.NS', 'PFC.NS'],
     'NIFTY 50': ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'TCS.NS', 'ITC.NS', 'LT.NS', 'AXISBANK.NS'],
     'SENSEX': ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'TCS.NS', 'BHARTIARTL.NS', 'SBIN.NS', 'KOTAKBANK.NS'],
@@ -150,11 +155,14 @@ def fetch_sector_analytics():
                 stock = yf.Ticker(ticker)
                 df = stock.history(period='5d', interval='5m')
                 
-                if df.empty or len(df) < 20:
-                    continue
+                # Fallback to 1d data if 5m is empty (prevents stock dropping)
+                if df.empty or len(df) < 5:
+                    df = stock.history(period='5d', interval='1d')
+                    if df.empty:
+                        continue
                 
-                df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
-                df['RSI'] = calculate_rsi(df['Close'], 14)
+                df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean() if len(df) >= 20 else df['Close']
+                df['RSI'] = calculate_rsi(df['Close'], 14) if len(df) >= 14 else 50.0
                 
                 today_date = df.index[-1].date()
                 df_today = df[df.index.date == today_date].copy()
@@ -166,25 +174,22 @@ def fetch_sector_analytics():
                 if not df_today.empty:
                     open_price = df_today['Open'].iloc[0]
                     
-                    # 1. VWAP Calculation
-                    df_today['VWAP'] = (df_today['Volume'] * (df_today['High'] + df_today['Low'] + df_today['Close']) / 3).cumsum() / df_today['Volume'].cumsum()
+                    # VWAP
+                    df_today['VWAP'] = (df_today['Volume'] * (df_today['High'] + df_today['Low'] + df_today['Close']) / 3).cumsum() / (df_today['Volume'].cumsum().replace(0, 1))
                     
-                    # 2. Percentage Gain & Volume Ratio
+                    # Momentum metrics
                     df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
                     mean_vol = df_today['Volume'].mean()
                     df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
+                    df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2, min_periods=1).mean()
                     
-                    # 3. Continuous Volume Spike (2-Candle Rolling Avg)
-                    df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2).mean()
-                    
-                    # UPDATED TIME WINDOW: 09:15 to 11:30 AM
+                    # Window 09:15 - 11:30 AM
                     df_morning = df_today.between_time('09:15', '11:30')
                     
-                    # --- REAL MOMENTUM FILTER (Price > VWAP + Gain >= 1.5% + Sustained Vol >= 1.8x) ---
                     strong_breakouts = df_morning[
-                        (df_morning['Close'] > df_morning['VWAP']) & 
-                        (df_morning['Pct_From_Open'].abs() >= 1.5) & 
-                        (df_morning['Rolling_Vol_Ratio'] >= 1.8)
+                        (df_morning['Close'] >= df_morning['VWAP']) & 
+                        (df_morning['Pct_From_Open'].abs() >= 1.2) & 
+                        (df_morning['Rolling_Vol_Ratio'] >= 1.5)
                     ]
                     
                     if not strong_breakouts.empty:
@@ -193,8 +198,7 @@ def fetch_sector_analytics():
                         morning_change = strong_breakouts['Pct_From_Open'].iloc[0]
                         morning_vol_spike = round(strong_breakouts['Rolling_Vol_Ratio'].iloc[0], 2)
                     else:
-                        # Secondary Fallback for Moderate Movers
-                        moderate_breakouts = df_morning[(df_morning['Pct_From_Open'].abs() >= 1.2) & (df_morning['Vol_Ratio'] >= 1.4)]
+                        moderate_breakouts = df_morning[(df_morning['Pct_From_Open'].abs() >= 1.0) & (df_morning['Vol_Ratio'] >= 1.2)]
                         if not moderate_breakouts.empty:
                             first_dt = moderate_breakouts.index[0]
                             first_breakout_time = first_dt.strftime('%H:%M') if hasattr(first_dt, 'strftime') else str(first_dt)[11:16]
@@ -206,7 +210,7 @@ def fetch_sector_analytics():
                             max_dt = df_morning['High'].idxmax()
                             first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
 
-                # Current Data
+                # Current metrics
                 current_price = df['Close'].iloc[-1]
                 prev_close = df['Close'].iloc[0]
                 pct_change = ((current_price - prev_close) / prev_close) * 100
@@ -232,7 +236,6 @@ def fetch_sector_analytics():
                     signal = '<span class="badge-hold">❌ Hold</span>'
                 
                 symbol_clean = ticker.replace('.NS', '')
-                
                 last_candle_time = df.index[-1]
                 formatted_time = last_candle_time.strftime('%H:%M') if hasattr(last_candle_time, 'strftime') else str(last_candle_time)[11:16]
                 
