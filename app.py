@@ -155,7 +155,7 @@ def fetch_sector_analytics():
                 stock = yf.Ticker(ticker)
                 df = stock.history(period='5d', interval='5m')
                 
-                # Fallback to 1d data if 5m is empty (prevents stock dropping)
+                # Fallback to 1d data if 5m is empty
                 if df.empty or len(df) < 5:
                     df = stock.history(period='5d', interval='1d')
                     if df.empty:
@@ -210,7 +210,7 @@ def fetch_sector_analytics():
                             max_dt = df_morning['High'].idxmax()
                             first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
 
-                # Current metrics with EXACT ROUNDING FIX
+                # Current metrics
                 current_price = df['Close'].iloc[-1]
                 prev_close = df['Close'].iloc[0]
                 pct_change = round(((current_price - prev_close) / prev_close) * 100, 2)
@@ -218,10 +218,17 @@ def fetch_sector_analytics():
                 ema20_val = df['EMA20'].iloc[-1]
                 rsi_val = df['RSI'].iloc[-1]
                 
-                vol_recent = df['Volume'].iloc[-5:].mean()
-                vol_avg = df['Volume'].mean()
-                r_fact = round((vol_recent / vol_avg), 2) if vol_avg > 0 else 1.0
-                
+                # --- OPTION 1: INTRADAY FAIR R-FACTOR CALCULATION ---
+                if not df_today.empty:
+                    vol_recent = df_today['Volume'].iloc[-5:].mean()
+                    vol_today_avg = df_today['Volume'].mean()
+                    r_fact = round((vol_recent / vol_today_avg), 2) if vol_today_avg > 0 else 1.0
+                else:
+                    vol_recent = df['Volume'].iloc[-5:].mean()
+                    vol_avg = df['Volume'].mean()
+                    r_fact = round((vol_recent / vol_avg), 2) if vol_avg > 0 else 1.0
+                # -----------------------------------------------------
+
                 above_ema = current_price > ema20_val
                 
                 if above_ema and rsi_val > 55 and r_fact > 1.2:
@@ -371,7 +378,7 @@ if not df_data.empty:
 
     st.markdown("---")
 
-    # --- 2. SECTOR HEATMAP (FIXED PRECISION TEMPLATE) ---
+    # --- 2. SECTOR HEATMAP ---
     st.subheader("MAP Sector Heatmap")
     fig_map = px.treemap(
         df_data,
@@ -382,7 +389,6 @@ if not df_data.empty:
         color_continuous_midpoint=0,
         custom_data=['Change %']
     )
-    # Strictly format customdata to 2 decimals cleanly
     fig_map.update_traces(
         texttemplate="<b>%{label}</b><br>%{customdata[0]:.2f}%"
     )
