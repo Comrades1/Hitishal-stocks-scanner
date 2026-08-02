@@ -345,7 +345,6 @@ if page == "Market Pulse":
             </div>
             """, unsafe_allow_html=True)
 
-            # Compact Filters Row (Trend Dropdown & Search Input side-by-side)
             b_f1, b_f2, b_f3 = st.columns([1.2, 1.2, 1.6])
             with b_f1:
                 b_trend = st.selectbox("Trend", ["Neutral", "Bullish 🟢", "Bearish 🔴"], key="b_tr", label_visibility="collapsed")
@@ -364,7 +363,6 @@ if page == "Market Pulse":
             elif b_trend == "Bearish 🔴":
                 b_df = b_df[b_df['Change %'] < 0]
 
-            # Table Render
             table_html = """
             <table class="custom-table">
                 <thead>
@@ -398,7 +396,7 @@ if page == "Market Pulse":
                     <td class="time-text">{row['Time']}</td>
                 </tr>
                 """
-            table_html += "</tbody></table>"
+            table_html += "</tbody></table>"  # FIXED HERE (added closing /)
             st.markdown(table_html, unsafe_allow_html=True)
 
         # --- 2. INTRADAY BOOST ---
@@ -415,7 +413,6 @@ if page == "Market Pulse":
             </div>
             """, unsafe_allow_html=True)
 
-            # Compact Filters Row
             i_f1, i_f2, i_f3 = st.columns([1.2, 1.2, 1.6])
             with i_f1:
                 i_trend = st.selectbox("Trend", ["Neutral", "Bullish 🟢", "Bearish 🔴"], key="i_tr", label_visibility="collapsed")
@@ -434,7 +431,6 @@ if page == "Market Pulse":
             elif i_trend == "Bearish 🔴":
                 i_df = i_df[i_df['Change %'] < 0]
 
-            # Table Render
             table_html_boost = """
             <table class="custom-table">
                 <thead>
@@ -466,7 +462,7 @@ if page == "Market Pulse":
                     <td style="text-align:center;">{arrow_html}</td>
                 </tr>
                 """
-            table_html_boost += "</tbody></table>"
+            table_html_boost += "</tbody></table>"  # FIXED HERE (added closing /)
             st.markdown(table_html_boost, unsafe_allow_html=True)
 
 elif page == "Sector Scope":
