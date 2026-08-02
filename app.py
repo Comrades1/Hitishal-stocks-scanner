@@ -155,6 +155,30 @@ def fetch_sector_analytics():
                 df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
                 df['RSI'] = calculate_rsi(df['Close'], 14)
                 
+                # --- MORNING DATA EXTRACTION (9:15 AM - 10:30 AM) ---
+                today_date = df.index[-1].date()
+                df_today = df[df.index.date == today_date]
+                
+                df_morning = df_today.between_time('09:15', '10:30') if not df_today.empty else pd.DataFrame()
+                
+                morning_change = 0.0
+                morning_vol_spike = 1.0
+                morning_high_time = "09:15"
+                
+                if not df_morning.empty:
+                    open_price = df_today['Open'].iloc[0]
+                    morning_max = df_morning['High'].max()
+                    morning_change = ((morning_max - open_price) / open_price) * 100
+                    
+                    morning_high_time_dt = df_morning['High'].idxmax()
+                    morning_high_time = morning_high_time_dt.strftime('%H:%M') if hasattr(morning_high_time_dt, 'strftime') else str(morning_high_time_dt)[11:16]
+                    
+                    avg_vol = df_today['Volume'].mean()
+                    morning_vol = df_morning['Volume'].mean()
+                    if avg_vol > 0:
+                        morning_vol_spike = round(morning_vol / avg_vol, 2)
+
+                # --- LATEST DATA ---
                 current_price = df['Close'].iloc[-1]
                 prev_close = df['Close'].iloc[0]
                 pct_change = ((current_price - prev_close) / prev_close) * 100
@@ -193,7 +217,10 @@ def fetch_sector_analytics():
                     'Abs Change': abs(pct_change) + 0.1,
                     'R Fact': r_fact,
                     'Signal': signal,
-                    'Time': formatted_time
+                    'Time': formatted_time,
+                    'Morning_Change': round(morning_change, 2),
+                    'Morning_Time': morning_high_time,
+                    'Morning_Vol_Spike': morning_vol_spike
                 })
             except Exception:
                 continue
@@ -209,29 +236,34 @@ if not df_data.empty:
     
     st.subheader("🔥 Market Pulse Scanners")
     
-    # TWO COLUMNS LAYOUT: Left = Breakout Beacon, Right = Intraday Boost (With Filters)
     col1, col2 = st.columns(2)
     
-    # Dynamic Market Status Indicator
     market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
-    # --- LEFT COLUMN: BREAKOUT BEACON (UNFILTERED / INDEPENDENT) ---
+    # --- LEFT COLUMN: BREAKOUT BEACON (MORNING SESSION: 9:15 - 10:30 AM) ---
     beacon_df = df_data.copy()
-    beacon_df['Signal %'] = (beacon_df['Change %'].abs() * 1.2).round(2)
-    beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
-    beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
     
-    top_breakouts = beacon_df.sort_values(by='Signal %', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
+    beacon_df['Morning_Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
+    beacon_df['Beacon_Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
+    beacon_df['Change_Badge'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+    
+    top_breakouts = beacon_df.sort_values(by='Morning_Score', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
 
     with col1:
         st.markdown(f"""
         <div class="pulse-card">
-            <div class="pulse-header">🔥 BREAKOUT BEACON 💡 {market_badge}</div>
+            <div class="pulse-header">🔥 BREAKOUT BEACON 💡 <span style="font-size:11px; color:#8b949e;">(Morning 9:15-10:30 AM)</span> {market_badge}</div>
         </div>
         """, unsafe_allow_html=True)
         
-        display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Signal %', 'Time']].rename(
-            columns={'Beacon_Signal': 'Signal', 'Chart': 'Symbol', 'Change_Badge': '%', 'Signal %': 'Signal %'}
+        display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Morning_Time', 'Morning_Vol_Spike']].rename(
+            columns={
+                'Beacon_Signal': 'Signal', 
+                'Chart': 'Symbol', 
+                'Change_Badge': 'Morn %', 
+                'Morning_Time': 'Peak Time',
+                'Morning_Vol_Spike': 'Vol Spike ⚡'
+            }
         )
         st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
 
@@ -243,7 +275,6 @@ if not df_data.empty:
         </div>
         """, unsafe_allow_html=True)
         
-        # FILTERS SPECIFIC TO INTRADAY BOOST ONLY
         f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         with f_col1:
             trend_filter = st.selectbox("↕️ Trend", ["Neutral (All)", "Bullish Only 🟢", "Bearish Only 🔴"], key="boost_trend")
@@ -254,7 +285,6 @@ if not df_data.empty:
         with f_col4:
             sector_filter = st.selectbox("🎯 Sector", ["All Sectors"] + list(SECTOR_DATA.keys()), key="boost_sector")
         
-        # APPLY FILTERS ONLY TO INTRADAY BOOST DATA
         boost_filtered_df = df_data.copy()
         
         if trend_filter == "Bullish Only 🟢":
