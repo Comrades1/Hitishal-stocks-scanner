@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
+from datetime import datetime, time
 
 # 1. Page Configuration
 st.set_page_config(page_title="Sector Scope - Smart Scanner", layout="wide", initial_sidebar_state="expanded")
@@ -107,6 +108,12 @@ def make_tradingview_link(symbol):
     url = f"https://in.tradingview.com/chart/?symbol=NSE:{clean_symbol}"
     return f'<a href="{url}" target="_blank" style="text-decoration:none; color:#58a6ff; font-weight:bold;">{clean_symbol} ↗</a>'
 
+def is_market_open():
+    now = datetime.now()
+    if now.weekday() < 5 and time(9, 15) <= now.time() <= time(15, 30):
+        return True
+    return False
+
 SECTOR_DATA = {
     'AUTO': ['TATAMOTORS.NS', 'M&M.NS', 'BAJAJ-AUTO.NS', 'HEROMOTOCO.NS', 'EICHERMOT.NS', 'ASHOKLEY.NS', 'TVSMOTOR.NS', 'BHARATFORG.NS'],
     'FIN SERVICE': ['BAJFINANCE.NS', 'BAJAJFINSV.NS', 'MUTHOOTFIN.NS', 'CHOLAFIN.NS', 'JIOFIN.NS', 'LICHSGFIN.NS', 'BSE.NS', 'PFC.NS'],
@@ -173,7 +180,10 @@ def fetch_sector_analytics():
                     signal = '<span class="badge-hold">❌ Hold</span>'
                 
                 symbol_clean = ticker.replace('.NS', '')
-                last_time = df.index[-1].strftime('%H:%M')
+                
+                # Dynamic Last Candle Time Formatting
+                last_candle_time = df.index[-1]
+                formatted_time = last_candle_time.strftime('%H:%M') if hasattr(last_candle_time, 'strftime') else str(last_candle_time)[11:16]
                 
                 all_stocks.append({
                     'Sector': sector,
@@ -184,7 +194,7 @@ def fetch_sector_analytics():
                     'Abs Change': abs(pct_change) + 0.1,
                     'R Fact': r_fact,
                     'Signal': signal,
-                    'Time': last_time
+                    'Time': formatted_time
                 })
             except Exception:
                 continue
@@ -198,10 +208,9 @@ with st.spinner("Calculating Indicators & Live Market Scans..."):
 
 if not df_data.empty:
     
-    # --- 1. MARKET PULSE FILTERS & SCANNERS ---
+    # --- 1. TOP FILTER BAR ---
     st.subheader("🔥 Market Pulse Scanners")
     
-    # FILTER BAR AT TOP
     f_col1, f_col2, f_col3, f_col4 = st.columns(4)
     
     with f_col1:
@@ -213,7 +222,7 @@ if not df_data.empty:
     with f_col4:
         sector_filter = st.selectbox("🎯 Sector Filter", ["All Sectors"] + list(SECTOR_DATA.keys()), key="sector_f")
     
-    # FILTERING LOGIC
+    # FILTER LOGIC
     filtered_df = df_data.copy()
     
     if trend_filter == "Bullish Only 🟢":
@@ -238,10 +247,10 @@ if not df_data.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # TWO CARDS DISPLAY
+    # MARKET PULSE DISPLAY CARDS
     col1, col2 = st.columns(2)
     
-    # Breakout Beacon Card
+    # Data Preparation for Cards
     beacon_df = filtered_df.copy()
     beacon_df['Signal %'] = (beacon_df['Change %'].abs() * 1.2).round(2)
     beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
@@ -249,15 +258,17 @@ if not df_data.empty:
     
     top_breakouts = beacon_df.sort_values(by='Signal %', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
     
-    # Intraday Boost Card
     boost_df = filtered_df.copy().sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(8)
     boost_df['Boost_Signal'] = boost_df['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
     boost_df['Change_Badge'] = boost_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
     
+    # Dynamic Market Status Badge
+    market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
+
     with col1:
-        st.markdown("""
+        st.markdown(f"""
         <div class="pulse-card">
-            <div class="pulse-header">🔥 BREAKOUT BEACON 💡 <span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span></div>
+            <div class="pulse-header">🔥 BREAKOUT BEACON 💡 {market_badge}</div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -267,9 +278,9 @@ if not df_data.empty:
         st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
 
     with col2:
-        st.markdown("""
+        st.markdown(f"""
         <div class="pulse-card">
-            <div class="pulse-header">⚡ INTRADAY BOOST 🚀 <span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span></div>
+            <div class="pulse-header">⚡ INTRADAY BOOST 🚀 {market_badge}</div>
         </div>
         """, unsafe_allow_html=True)
         
