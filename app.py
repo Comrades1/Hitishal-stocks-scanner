@@ -7,7 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 from datetime import datetime, time
 
 # 1. Page Configuration
-st.set_page_config(page_title="TradeFinder — Market Pulse", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="HITISHAL SCANNER — Market Pulse", page_icon="🦄", layout="wide", initial_sidebar_state="expanded")
 
 # --- LOGIN SYSTEM START ---
 USER_CREDENTIALS = {
@@ -20,7 +20,7 @@ if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
 def login():
-    st.markdown("<h2 style='text-align: center; color: #38bdf8;'>🔒 TradeFinder Login</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #38bdf8;'>🔒 HITISHAL SCANNER Login 🦄</h2>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         username = st.text_input("Username")
@@ -41,7 +41,7 @@ if not st.session_state["authenticated"]:
 # Auto-refresh every 30 seconds
 st_autorefresh(interval=30000, limit=None, key="market_refresh")
 
-# --- ULTRA MODERN TRADEFINDER UI STYLING ---
+# --- ULTRA MODERN UI STYLING ---
 st.markdown("""
     <style>
     /* Dark Theme Core Background */
@@ -88,13 +88,16 @@ st.markdown("""
         border-right: 1px solid #1e293b;
     }
     .sidebar-brand {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 800;
         color: #f8fafc;
         display: flex;
         align-items: center;
         gap: 8px;
         margin-bottom: 20px;
+        background: linear-gradient(90deg, #a855f7, #ec4899);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
     .sidebar-section {
         font-size: 11px;
@@ -229,9 +232,9 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- 3. SIDEBAR NAVIGATION ROUTING ---
+# --- 3. SIDEBAR NAVIGATION WITH UNICORN BRANDING ---
 with st.sidebar:
-    st.markdown('<div class="sidebar-brand">🎯 TradeFinder</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-brand">🦄 HITISHAL SCANNER</div>', unsafe_allow_html=True)
     
     st.markdown('<div class="sidebar-section">📊 Stocks</div>', unsafe_allow_html=True)
     page = st.radio(
@@ -239,12 +242,6 @@ with st.sidebar:
         ["Market Pulse", "Insider Strategy", "Sector Scope", "Swing Spectrum"], 
         label_visibility="collapsed"
     )
-    
-    st.markdown('<div class="sidebar-section">📈 Index</div>', unsafe_allow_html=True)
-    st.caption("• Option Clock  |  • Index Mover")
-    
-    st.markdown('<div class="sidebar-section">💼 Institutional</div>', unsafe_allow_html=True)
-    st.caption("• FII / DII Activity")
     
     st.markdown("---")
     if st.button("Logout", use_container_width=True):
@@ -371,10 +368,10 @@ with st.spinner("Fetching Market Data..."):
     df_data = fetch_sector_analytics()
 
 # ==============================================================================
-# PAGE 1: MARKET PULSE (BREAKOUT BEACON + INTRADAY BOOST)
+# PAGE 1: MARKET PULSE
 # ==============================================================================
 if page == "Market Pulse":
-    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Market Pulse</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Market Pulse 🦄</h1>", unsafe_allow_html=True)
 
     if not df_data.empty:
         col1, col2 = st.columns(2)
@@ -456,14 +453,14 @@ if page == "Market Pulse":
         st.error("Market data load nahi ho pa raha hai.")
 
 # ==============================================================================
-# PAGE 2: SECTOR SCOPE (HEATMAP + SECTOR BREAKDOWN)
+# PAGE 2: SECTOR SCOPE
 # ==============================================================================
 elif page == "Sector Scope":
     st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Sector Scope</h1>", unsafe_allow_html=True)
     if not df_data.empty:
         fig_map = px.treemap(
             df_data,
-            path=[px.Constant("TradeFinder"), 'Sector', 'Symbol'],
+            path=[px.Constant("HITISHAL SCANNER"), 'Sector', 'Symbol'],
             values='Abs Change',
             color='Change %',
             color_continuous_scale=['#f87171', '#0f172a', '#4ade80'],
