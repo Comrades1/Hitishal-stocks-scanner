@@ -312,13 +312,14 @@ def fetch_sector_analytics():
 with st.spinner("Loading Live Market Feed..."):
     df_data = fetch_sector_analytics()
 
+# --- 1. MARKET PULSE ---
 if page == "Market Pulse":
     st.markdown("<h1 style='color:#f8fafc; font-size:24px; font-weight:800; margin-bottom:12px;'>Market Pulse 🦄</h1>", unsafe_allow_html=True)
 
     if not df_data.empty:
         col1, col2 = st.columns(2)
 
-        # --- 1. BREAKOUT BEACON ---
+        # Breakout Beacon
         with col1:
             st.markdown("""
             <div class="card-header-row">
@@ -359,7 +360,7 @@ if page == "Market Pulse":
             table_html += '</tbody></table>'
             st.markdown(table_html, unsafe_allow_html=True)
 
-        # --- 2. INTRADAY BOOST ---
+        # Intraday Boost
         with col2:
             st.markdown("""
             <div class="card-header-row">
@@ -400,14 +401,56 @@ if page == "Market Pulse":
             table_html_boost += '</tbody></table>'
             st.markdown(table_html_boost, unsafe_allow_html=True)
 
+# --- 2. SECTOR SCOPE (HEATMAP & METRICS) ---
 elif page == "Sector Scope":
-    st.markdown("<h1 style='color:#f8fafc; font-size:24px; font-weight:800;'>Sector Scope</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#f8fafc; font-size:24px; font-weight:800; margin-bottom:15px;'>Sector Scope 📊</h1>", unsafe_allow_html=True)
     if not df_data.empty:
+        st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Interactive Sector Heatmap based on live price performance and volume weights.</p>", unsafe_allow_html=True)
         fig_map = px.treemap(
             df_data,
-            path=[px.Constant("SCANNER"), 'Sector', 'Symbol'],
+            path=[px.Constant("MARKET SECTORS"), 'Sector', 'Symbol'],
             values='Price',
             color='Change %',
-            color_continuous_scale=['#f87171', '#0f172a', '#4ade80']
+            color_continuous_scale=['#f87171', '#1e293b', '#4ade80'],
+            color_continuous_midpoint=0
+        )
+        fig_map.update_layout(
+            margin = dict(t=10, l=10, r=10, b=10),
+            paper_bgcolor = '#111317',
+            plot_bgcolor = '#111317',
+            font = dict(color = '#ffffff')
         )
         st.plotly_chart(fig_map, use_container_width=True)
+        
+        st.markdown("### Sector Performance Summary")
+        sector_summary = df_data.groupby('Sector')['Change %'].mean().reset_index()
+        st.dataframe(sector_summary, use_container_width=True)
+
+# --- 3. INSIDER STRATEGY ---
+elif page == "Insider Strategy":
+    st.markdown("<h1 style='color:#f8fafc; font-size:24px; font-weight:800; margin-bottom:15px;'>Insider Strategy 🔍</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #94a3b8;'>Track high-conviction institutional and insider trading setups across listed instruments.</p>", unsafe_allow_html=True)
+    if not df_data.empty:
+        insider_df = df_data.sort_values(by='R Fact', ascending=False).head(10)
+        table_html_insider = '<table class="custom-table"><thead><tr><th>Symbol</th><th>Sector</th><th>Price (₹)</th><th>Change %</th><th>Relative Factor (R.Fac)</th></tr></thead><tbody>'
+        for _, row in insider_df.iterrows():
+            pct_html = f'<span class="pct-pill-green">{row["Change %"]:+.2f}</span>' if row['Change %'] >= 0 else f'<span class="pct-pill-red">{row["Change %"]:.2f}</span>'
+            table_html_insider += f'<tr><td><b>{row["Symbol"]}</b></td><td>{row["Sector"]}</td><td>{row["Price"]}</td><td style="text-align:center;">{pct_html}</td><td class="signal-pct-text">{row["R Fact"]}</td></tr>'
+        table_html_insider += '</tbody></table>'
+        st.markdown(table_html_insider, unsafe_allow_html=True)
+
+# --- 4. SWING SPECTRUM ---
+elif page == "Swing Spectrum":
+    st.markdown("<h1 style='color:#f8fafc; font-size:24px; font-weight:800; margin-bottom:15px;'>Swing Spectrum ⚡</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #94a3b8;'>Identify high-momentum swing trading opportunities with explosive breakouts.</p>", unsafe_allow_html=True)
+    if not df_data.empty:
+        swing_df = df_data[df_data['Signal %'] > 2.0].sort_values(by='Signal %', ascending=False)
+        if swing_df.empty:
+            swing_df = df_data.head(5)
+            
+        table_html_swing = '<table class="custom-table"><thead><tr><th>Symbol</th><th>Sector</th><th>Price (₹)</th><th>Change %</th><th>Momentum Score</th></tr></thead><tbody>'
+        for _, row in swing_df.iterrows():
+            pct_html = f'<span class="pct-pill-green">{row["Change %"]:+.2f}</span>' if row['Change %'] >= 0 else f'<span class="pct-pill-red">{row["Change %"]:.2f}</span>'
+            table_html_swing += f'<tr><td><b>{row["Symbol"]}</b></td><td>{row["Sector"]}</td><td>{row["Price"]}</td><td style="text-align:center;">{pct_html}</td><td class="signal-pct-text">{row["Signal %"]}</td></tr>'
+        table_html_swing += '</tbody></table>'
+        st.markdown(table_html_swing, unsafe_allow_html=True)
