@@ -2,14 +2,12 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
-from datetime import datetime, time
 
 # 1. Page Configuration
 st.set_page_config(page_title="HITISHAL SCANNER — Market Pulse", page_icon="🦄", layout="wide", initial_sidebar_state="expanded")
 
-# --- LOGIN SYSTEM START ---
+# --- LOGIN SYSTEM ---
 USER_CREDENTIALS = {
     "admin": "12345",
     "ASHWAJIT": "pass123",
@@ -36,22 +34,19 @@ def login():
 if not st.session_state["authenticated"]:
     login()
     st.stop()
-# --- LOGIN SYSTEM END ---
 
 # Auto-refresh every 30 seconds
 st_autorefresh(interval=30000, limit=None, key="market_refresh")
 
-# --- ULTRA MODERN UI STYLING ---
+# --- ULTRA MODERN UI & COMPACT FILTER STYLING ---
 st.markdown("""
     <style>
-    /* Dark Theme Core Background */
     .stApp {
-        background-color: #090d16 !important;
+        background-color: #0d0f12 !important;
         color: #94a3b8;
-        font-family: 'Inter', sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     
-    /* Hide Streamlit Header/Footer Padding */
     header[data-testid="stHeader"] { background: transparent !important; }
     .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
 
@@ -59,7 +54,7 @@ st.markdown("""
     .ticker-wrap {
         width: 100%;
         overflow: hidden;
-        background-color: #0f172a;
+        background-color: #12161f;
         border-bottom: 1px solid #1e293b;
         white-space: nowrap;
         padding: 8px 0;
@@ -82,157 +77,181 @@ st.markdown("""
         100% { transform: translate3d(-50%, 0, 0); }
     }
 
-    /* Sidebar Custom Styling */
-    section[data-testid="stSidebar"] {
-        background-color: #0f172a !important;
-        border-right: 1px solid #1e293b;
+    /* Outer Scanner Box */
+    .scanner-box {
+        background-color: #111317;
+        border: 1px solid #23272f;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 15px;
     }
-    .sidebar-brand {
-        font-size: 20px;
-        font-weight: 800;
-        color: #f8fafc;
+
+    /* Compact Header Row matching Image */
+    .card-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .card-title-group {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 20px;
-        background: linear-gradient(90deg, #a855f7, #ec4899);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-    .sidebar-section {
-        font-size: 11px;
-        text-transform: uppercase;
-        color: #64748b;
-        font-weight: 700;
-        letter-spacing: 0.8px;
-        margin-top: 15px;
-        margin-bottom: 5px;
-    }
-
-    /* Card Containers */
-    .trade-card {
-        background: #121824;
-        border: 1px solid #1e293b;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 10px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    }
-    .card-header-flex {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 8px;
-    }
-    .card-title-box {
-        display: flex;
-        align-items: center;
-        gap: 10px;
     }
     .card-title-text {
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 800;
-        color: #f8fafc;
+        color: #ffffff;
         letter-spacing: 0.5px;
     }
     .how-to-use {
         color: #38bdf8;
-        font-size: 12px;
-        font-weight: 600;
-        text-decoration: underline;
-        cursor: pointer;
-        margin-left: 8px;
-    }
-    
-    /* Custom HTML Table Styling */
-    table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0 6px;
-        font-size: 13px;
-    }
-    th {
-        color: #64748b;
-        text-align: left;
-        padding: 8px 12px;
         font-size: 11px;
         font-weight: 600;
-        text-transform: uppercase;
-        border: none;
+        text-decoration: none;
     }
-    td {
-        padding: 8px 12px;
-        background-color: #0f172a;
-        color: #e2e8f0;
-        font-weight: 500;
-    }
-    td:first-child { border-radius: 8px 0 0 8px; }
-    td:last-child { border-radius: 0 8px 8px 0; }
-    tr:hover td { background-color: #1e293b; }
-
-    /* Pill Badges (BULL/BEAR) */
-    .badge-pill-bull {
-        background-color: #143522;
-        color: #4ade80;
-        padding: 4px 16px;
-        border-radius: 20px;
-        font-weight: 700;
-        font-size: 11px;
-        display: inline-block;
-        border: 1px solid #166534;
-    }
-    .badge-pill-bear {
-        background-color: #3b1719;
-        color: #f87171;
-        padding: 4px 16px;
-        border-radius: 20px;
-        font-weight: 700;
-        font-size: 11px;
-        display: inline-block;
-        border: 1px solid #991b1b;
-    }
-
-    /* Percentage Value Badges */
-    .pct-box-green {
-        background-color: #143522;
-        color: #4ade80;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-weight: 700;
-        font-size: 12px;
-        display: inline-block;
-        min-width: 60px;
-        text-align: center;
-    }
-    .pct-box-red {
-        background-color: #3b1719;
-        color: #f87171;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-weight: 700;
-        font-size: 12px;
-        display: inline-block;
-        min-width: 60px;
-        text-align: center;
-    }
-    
     .live-badge-pill {
         background: #ef4444;
         color: white;
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 800;
-        padding: 2px 8px;
-        border-radius: 12px;
+        padding: 2px 6px;
+        border-radius: 10px;
+    }
+
+    /* Streamlit Widget Compact Adjustments */
+    div[data-baseweb="select"] > div {
+        background-color: #1a1d24 !important;
+        border-color: #2a2e39 !important;
+        color: #ffffff !important;
+        min-height: 30px !important;
+        font-size: 12px !important;
+        border-radius: 6px !important;
+    }
+    div[data-baseweb="select"] span {
+        color: #ffffff !important;
+        font-size: 12px !important;
     }
     
-    /* Compact Filter Select Boxes */
-    div[data-baseweb="select"] {
-        min-height: 32px !important;
+    /* Input Search Box Styling */
+    div[data-baseweb="input"] > div {
+        background-color: #1a1d24 !important;
+        border-color: #2a2e39 !important;
+        border-radius: 6px !important;
+        min-height: 30px !important;
     }
+    div[data-baseweb="input"] input {
+        color: #ffffff !important;
+        font-size: 12px !important;
+        padding: 4px 8px !important;
+    }
+
+    /* TABLE STYLING */
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+    }
+    .custom-table th {
+        background-color: #1a1d24;
+        color: #8b949e;
+        padding: 8px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: left;
+        border-bottom: 1px solid #23272f;
+    }
+    .custom-table td {
+        padding: 7px 10px;
+        vertical-align: middle;
+        font-size: 12px;
+        font-weight: 600;
+        border-bottom: 1px solid #181b20;
+    }
+
+    /* Signal Pills (BULL / BEAR) */
+    .pill-bull {
+        background-color: #c2f0c2;
+        color: #155724;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-weight: 800;
+        font-size: 10px;
+        display: inline-block;
+        text-align: center;
+        min-width: 55px;
+    }
+    .pill-bear {
+        background-color: #ffcdd2;
+        color: #721c24;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-weight: 800;
+        font-size: 10px;
+        display: inline-block;
+        text-align: center;
+        min-width: 55px;
+    }
+
+    /* Percentage Oval Badges */
+    .pct-pill-green {
+        background-color: #c2f0c2;
+        color: #0f401b;
+        padding: 3px 10px;
+        border-radius: 14px;
+        font-weight: 800;
+        font-size: 11px;
+        display: inline-block;
+        min-width: 55px;
+        text-align: center;
+    }
+    .pct-pill-red {
+        background-color: #ffcdd2;
+        color: #5c131a;
+        padding: 3px 10px;
+        border-radius: 14px;
+        font-weight: 800;
+        font-size: 11px;
+        display: inline-block;
+        min-width: 55px;
+        text-align: center;
+    }
+
+    /* Symbol + Chart Button */
+    .sym-flex {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+    }
+    .sym-text {
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 12px;
+    }
+    .chart-icon-btn {
+        background-color: #0d6efd;
+        color: #ffffff !important;
+        font-size: 10px;
+        padding: 2px 5px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: bold;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .signal-pct-text { color: #ffffff; font-weight: 700; }
+    .time-text { color: #e2e8f0; font-size: 11px; }
+    .arrow-up { color: #22c55e; font-size: 15px; }
+    .arrow-down { color: #ef4444; font-size: 15px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. TOP TICKER MARQUEE BAR ---
+# Top Marquee Bar
 st.markdown("""
 <div class="ticker-wrap">
   <div class="ticker">
@@ -241,58 +260,24 @@ st.markdown("""
     <div class="ticker-item">DOW JONES <b>52,410.00</b> <span class="up-val">+154.00 (+0.29%)</span></div>
     <div class="ticker-item">NIKKEI <b>62,828</b> <span class="down-val">-764 (-1.20%)</span></div>
     <div class="ticker-item">BTC/USD <b>63,118.19</b> <span class="up-val">+343.43 (+0.55%)</span></div>
-    <div class="ticker-item">HSI <b>25,884.43</b> <span class="up-val">+25.55 (+0.10%)</span></div>
-    <div class="ticker-item">DAX <b>25,612.03</b> <span class="up-val">+151.55 (+0.60%)</span></div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- 3. SIDEBAR NAVIGATION WITH UNICORN BRANDING ---
+# Sidebar
 with st.sidebar:
-    st.markdown('<div class="sidebar-brand">🦄 HITISHAL SCANNER</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="sidebar-section">📊 Stocks</div>', unsafe_allow_html=True)
-    page = st.radio(
-        "Stocks Menu", 
-        ["Market Pulse", "Insider Strategy", "Sector Scope", "Swing Spectrum"], 
-        label_visibility="collapsed"
-    )
-    
+    st.markdown('<div style="font-size:18px; font-weight:800; color:#fff; margin-bottom:20px;">🦄 HITISHAL SCANNER</div>', unsafe_allow_html=True)
+    page = st.radio("Navigation", ["Market Pulse", "Insider Strategy", "Sector Scope", "Swing Spectrum"], label_visibility="collapsed")
     st.markdown("---")
     if st.button("Logout", use_container_width=True):
         st.session_state["authenticated"] = False
         st.rerun()
 
-def make_tradingview_link(symbol):
-    clean_symbol = str(symbol).replace('.NS', '').replace('.BO', '').strip()
-    url = f"https://in.tradingview.com/chart/?symbol=NSE:{clean_symbol}"
-    return f'<a href="{url}" target="_blank" style="text-decoration:none; color:#38bdf8; font-weight:700;">📈 {clean_symbol}</a>'
-
-# SECTOR DATA DICTIONARY
 SECTOR_DATA = {
-    'AUTO': [
-        'M&M.NS', 'MOTHERSON.NS', 'SAMVARDHANA.NS', 'MARUTI.NS', 'TATAMOTORS.NS', 
-        'BAJAJ-AUTO.NS', 'HEROMOTOCO.NS', 'TVSMOTOR.NS', 'EICHERMOT.NS', 'ASHOKLEY.NS', 
-        'BHARATFORG.NS', 'BOSCHLTD.NS', 'UNOMINDA.NS', 'TIINDIA.NS', 'EXIDEIND.NS', 
-        'BALKRISIND.NS', 'APOLLOTYRE.NS', 'MRF.NS', 'SONACOMS.NS', 'FORCEMOT.NS', 'HYUNDAI.NS'
-    ],
-    'FIN SERVICE': ['BAJFINANCE.NS', 'BAJAJFINSV.NS', 'MUTHOOTFIN.NS', 'CHOLAFIN.NS', 'JIOFIN.NS', 'LICHSGFIN.NS', 'BSE.NS', 'PFC.NS'],
-    'NIFTY 50': ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'TCS.NS', 'ITC.NS', 'LT.NS', 'AXISBANK.NS'],
-    'SENSEX': ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'TCS.NS', 'BHARTIARTL.NS', 'SBIN.NS', 'KOTAKBANK.NS'],
-    'ENERGY': ['RELIANCE.NS', 'NTPC.NS', 'POWERGRID.NS', 'ONGC.NS', 'GAIL.NS', 'BPCL.NS', 'TATAPOWER.NS', 'SUZLON.NS'],
-    'PHARMA': ['SUNPHARMA.NS', 'CIPLA.NS', 'DRREDDY.NS', 'DIVISLAB.NS', 'LUPIN.NS', 'ZYDUSLIFE.NS', 'TORNTPHARM.NS', 'MANKIND.NS'],
-    'IT': ['TCS.NS', 'INFY.NS', 'HCLTECH.NS', 'WIPRO.NS', 'TECHM.NS', 'LTIM.NS', 'COFORGE.NS', 'PERSISTENT.NS'],
-    'BANK': ['HDFCBANK.NS', 'ICICIBANK.NS', 'SBIN.NS', 'KOTAKBANK.NS', 'AXISBANK.NS', 'INDUSINDBK.NS', 'PNB.NS', 'BANKBARODA.NS'],
-    'REALTY': ['DLF.NS', 'LODHA.NS', 'GODREJPROP.NS', 'PHOENIXLTD.NS', 'OBEROIRLTY.NS', 'PRESTIGE.NS', 'BRIGADE.NS'],
-    'METAL': ['TATASTEEL.NS', 'JINDALSTEL.NS', 'HINDALCO.NS', 'VEDL.NS', 'NATIONALUM.NS', 'SAIL.NS', 'NMDC.NS', 'APLAPOLLO.NS']
+    'AUTO': ['M&M.NS', 'MARUTI.NS', 'TATAMOTORS.NS', 'BAJAJ-AUTO.NS', 'EICHERMOT.NS'],
+    'FIN SERVICE': ['BAJFINANCE.NS', 'BAJAJFINSV.NS', 'JIOFIN.NS', 'BAJAJHLDNG.NS'],
+    'NIFTY 50': ['DELHIVERY.NS', 'INDUSTOWER.NS', 'DIXON.NS', 'APLAPOLLO.NS', 'KAYNES.NS', 'PREMIERENE.NS', 'GAIL.NS', 'INOXWIND.NS', 'PERSISTENT.NS', 'TORNTPHARM.NS', 'MOTHERSON.NS']
 }
-
-def calculate_rsi(series, period=14):
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    return 100 - (100 / (1 + rs))
 
 @st.cache_data(ttl=25)
 def fetch_sector_analytics():
@@ -307,253 +292,191 @@ def fetch_sector_analytics():
                     if df.empty:
                         continue
                 
-                df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean() if len(df) >= 20 else df['Close']
-                df['RSI'] = calculate_rsi(df['Close'], 14) if len(df) >= 14 else 50.0
-                
-                today_date = df.index[-1].date()
-                df_today = df[df.index.date == today_date].copy()
-                
-                morning_change = 0.0
-                morning_vol_spike = 1.0
-                first_breakout_time = "09:15"
-                
-                if not df_today.empty:
-                    open_price = df_today['Open'].iloc[0]
-                    df_today['VWAP'] = (df_today['Volume'] * (df_today['High'] + df_today['Low'] + df_today['Close']) / 3).cumsum() / (df_today['Volume'].cumsum().replace(0, 1))
-                    df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
-                    mean_vol = df_today['Volume'].mean()
-                    df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
-                    df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2, min_periods=1).mean()
-                    
-                    df_morning = df_today.between_time('09:15', '11:30')
-                    strong_breakouts = df_morning[
-                        (df_morning['Close'] >= df_morning['VWAP']) & 
-                        (df_morning['Pct_From_Open'].abs() >= 1.2) & 
-                        (df_morning['Rolling_Vol_Ratio'] >= 1.5)
-                    ]
-                    
-                    if not strong_breakouts.empty:
-                        first_dt = strong_breakouts.index[0]
-                        first_breakout_time = first_dt.strftime('%H:%M') if hasattr(first_dt, 'strftime') else str(first_dt)[11:16]
-                        morning_change = strong_breakouts['Pct_From_Open'].iloc[0]
-                        morning_vol_spike = round(strong_breakouts['Rolling_Vol_Ratio'].iloc[0], 2)
-                    elif not df_morning.empty:
-                        morning_max = df_morning['High'].max()
-                        morning_change = ((morning_max - open_price) / open_price) * 100
-                        max_dt = df_morning['High'].idxmax()
-                        first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
-
                 current_price = df['Close'].iloc[-1]
                 prev_close = df['Close'].iloc[0]
                 pct_change = round(((current_price - prev_close) / prev_close) * 100, 2)
+                
+                today_date = df.index[-1].date()
+                df_today = df[df.index.date == today_date].copy()
                 
                 if not df_today.empty:
                     vol_recent = df_today['Volume'].iloc[-5:].mean()
                     vol_today_avg = df_today['Volume'].mean()
                     r_fact = round((vol_recent / vol_today_avg), 2) if vol_today_avg > 0 else 1.0
                 else:
-                    vol_recent = df['Volume'].iloc[-5:].mean()
-                    vol_avg = df['Volume'].mean()
-                    r_fact = round((vol_recent / vol_avg), 2) if vol_avg > 0 else 1.0
+                    r_fact = 1.0
 
                 symbol_clean = ticker.replace('.NS', '')
-                last_candle_time = df.index[-1]
-                formatted_time = last_candle_time.strftime('%H:%M') if hasattr(last_candle_time, 'strftime') else str(last_candle_time)[11:16]
+                last_time = df.index[-1].strftime('%H:%M') if hasattr(df.index[-1], 'strftime') else "09:25"
                 
                 all_stocks.append({
                     'Sector': sector,
                     'Symbol': symbol_clean,
-                    'Chart': make_tradingview_link(symbol_clean),
                     'Price': round(current_price, 2),
                     'Change %': pct_change,
-                    'Abs Change': abs(pct_change) + 0.1,
                     'R Fact': r_fact,
-                    'Time': formatted_time,
-                    'Morning_Change': round(morning_change, 2),
-                    'Morning_Time': first_breakout_time,
-                    'Morning_Vol_Spike': morning_vol_spike
+                    'Time': last_time,
+                    'Signal %': round(abs(pct_change) * 1.15, 2)
                 })
             except Exception:
                 continue
-                
     return pd.DataFrame(all_stocks)
 
-# DATA FETCHING
-with st.spinner("Fetching Market Data..."):
+with st.spinner("Loading Live Market Feed..."):
     df_data = fetch_sector_analytics()
 
-# ==============================================================================
-# PAGE 1: MARKET PULSE (MATCHING IMAGE EXACT FILTERS)
-# ==============================================================================
 if page == "Market Pulse":
-    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Market Pulse 🦄</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#f8fafc; font-size:24px; font-weight:800; margin-bottom:12px;'>Market Pulse 🦄</h1>", unsafe_allow_html=True)
 
     if not df_data.empty:
         col1, col2 = st.columns(2)
-        
-        # --- 1. BREAKOUT BEACON CARD ---
+
+        # --- 1. BREAKOUT BEACON ---
         with col1:
             st.markdown("""
-            <div class="trade-card">
-                <div class="card-header-flex">
-                    <div class="card-title-box">
-                        <span style="font-size:20px;">🕯️🔥</span>
-                        <span class="card-title-text">BREAKOUT BEACON</span>
-                        <span style="font-size:16px;">💡</span>
-                        <span class="how-to-use">How to use ▶</span>
-                        <span class="live-badge-pill">LIVE</span>
-                    </div>
+            <div class="card-header-row">
+                <div class="card-title-group">
+                    <span style="font-size:16px;">🕯️🔥</span>
+                    <span class="card-title-text">BREAKOUT BEACON</span>
+                    <span>💡</span>
+                    <span class="how-to-use">How to use ▶</span>
+                    <span class="live-badge-pill">LIVE</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            
-            # Beacon Search Bar & Dropdowns Row
-            b_head1, b_head2 = st.columns([1.2, 1])
-            with b_head1:
-                b_trend = st.selectbox("Trend Filter", ["Neutral", "Bullish 🟢", "Bearish 🔴"], key="b_trend", label_visibility="collapsed")
-            with b_head2:
-                b_search = st.text_input("Search Beacon", placeholder="🔍 Search Symbol...", key="b_search", label_visibility="collapsed")
 
-            b_sec_col, b_win_col = st.columns(2)
-            with b_sec_col:
-                sector_list = ["All"] + list(SECTOR_DATA.keys())
-                b_sector = st.selectbox("Sector", sector_list, key="b_sector")
-            with b_win_col:
-                b_window = st.selectbox("Time Window", ["🌅 Morning Session", "📈 Full Day / Live"], key="b_window")
+            # Compact Filters Row (Trend Dropdown & Search Input side-by-side)
+            b_f1, b_f2, b_f3 = st.columns([1.2, 1.2, 1.6])
+            with b_f1:
+                b_trend = st.selectbox("Trend", ["Neutral", "Bullish 🟢", "Bearish 🔴"], key="b_tr", label_visibility="collapsed")
+            with b_f2:
+                b_sec = st.selectbox("Sector", ["All Sectors", "AUTO", "FIN SERVICE", "NIFTY 50"], key="b_sec", label_visibility="collapsed")
+            with b_f3:
+                b_search = st.text_input("Search", placeholder="🔍 Search...", key="b_sr", label_visibility="collapsed")
 
-            beacon_df = df_data.copy()
-            
-            # Apply Sector Filter
-            if b_sector != "All":
-                beacon_df = beacon_df[beacon_df['Sector'] == b_sector]
-                
-            # Apply Search Filter
+            b_df = df_data.copy()
             if b_search:
-                beacon_df = beacon_df[beacon_df['Symbol'].str.contains(b_search.upper(), na=False)]
-
-            # Apply Trend Filter
+                b_df = b_df[b_df['Symbol'].str.contains(b_search.upper(), na=False)]
+            if b_sec != "All Sectors":
+                b_df = b_df[b_df['Sector'] == b_sec]
             if b_trend == "Bullish 🟢":
-                beacon_df = beacon_df[beacon_df['Change %'] >= 0]
+                b_df = b_df[b_df['Change %'] >= 0]
             elif b_trend == "Bearish 🔴":
-                beacon_df = beacon_df[beacon_df['Change %'] < 0]
+                b_df = b_df[b_df['Change %'] < 0]
 
-            if b_window == "🌅 Morning Session":
-                beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
-                beacon_df['Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-pill-bull">BULL</span>' if x >= 0 else '<span class="badge-pill-bear">BEAR</span>')
-                beacon_df['Change'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
-                top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-                display_beacon = top_breakouts[['Signal', 'Chart', 'Change', 'Score', 'Morning_Time']].rename(
-                    columns={'Chart': 'Symbol', 'Change': '%', 'Score': 'Signal %', 'Morning_Time': 'Time'}
-                )
-            else:
-                beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
-                beacon_df['Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-pill-bull">BULL</span>' if x >= 0 else '<span class="badge-pill-bear">BEAR</span>')
-                beacon_df['Change'] = beacon_df['Change %'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
-                top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-                display_beacon = top_breakouts[['Signal', 'Chart', 'Change', 'Score', 'Time']].rename(
-                    columns={'Chart': 'Symbol', 'Change': '%', 'Score': 'Signal %'}
-                )
+            # Table Render
+            table_html = """
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Signal</th>
+                        <th>Symbol</th>
+                        <th style="text-align:center;">%</th>
+                        <th>Signal % 🪟</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
+            for _, row in b_df.head(9).iterrows():
+                sig_html = '<span class="pill-bull">BULL</span>' if row['Change %'] >= 0 else '<span class="pill-bear">BEAR</span>'
+                pct_html = f'<span class="pct-pill-green">{row["Change %"]:+.2f}</span>' if row['Change %'] >= 0 else f'<span class="pct-pill-red">{row["Change %"]:.2f}</span>'
+                chart_link = f'https://in.tradingview.com/chart/?symbol=NSE:{row["Symbol"]}'
                 
-            st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
+                table_html += f"""
+                <tr>
+                    <td>{sig_html}</td>
+                    <td>
+                        <div class="sym-flex">
+                            <span class="sym-text">{row['Symbol']}</span>
+                            <a href="{chart_link}" target="_blank" class="chart-icon-btn">📊+</a>
+                        </div>
+                    </td>
+                    <td style="text-align:center;">{pct_html}</td>
+                    <td class="signal-pct-text">{row['Signal %']}</td>
+                    <td class="time-text">{row['Time']}</td>
+                </tr>
+                """
+            table_html += "</tbody></table>"
+            st.markdown(table_html, unsafe_allow_html=True)
 
-        # --- 2. INTRADAY BOOST CARD ---
+        # --- 2. INTRADAY BOOST ---
         with col2:
             st.markdown("""
-            <div class="trade-card">
-                <div class="card-header-flex">
-                    <div class="card-title-box">
-                        <span style="font-size:20px;">🚀🔥</span>
-                        <span class="card-title-text">INTRADAY BOOST</span>
-                        <span style="font-size:16px;">💡</span>
-                        <span class="how-to-use">How to use ▶</span>
-                        <span class="live-badge-pill">LIVE</span>
-                    </div>
+            <div class="card-header-row">
+                <div class="card-title-group">
+                    <span style="font-size:16px;">🚀🔥</span>
+                    <span class="card-title-text">INTRADAY BOOST</span>
+                    <span>💡</span>
+                    <span class="how-to-use">How to use ▶</span>
+                    <span class="live-badge-pill">LIVE</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            
-            # Exact Filter Row matching the reference image: (Trend, Price, Beta, Sector)
-            i_f1, i_f2, i_f3 = st.columns([1, 1, 1])
+
+            # Compact Filters Row
+            i_f1, i_f2, i_f3 = st.columns([1.2, 1.2, 1.6])
             with i_f1:
-                i_trend = st.selectbox("Trend", ["Neutral", "Bullish 🟢", "Bearish 🔴"], key="i_trend", label_visibility="collapsed")
+                i_trend = st.selectbox("Trend", ["Neutral", "Bullish 🟢", "Bearish 🔴"], key="i_tr", label_visibility="collapsed")
             with i_f2:
-                i_price = st.selectbox("Price Range", ["All Prices", "< ₹500", "₹500-₹2000", "> ₹2000"], key="i_price", label_visibility="collapsed")
+                i_sec = st.selectbox("Sector", ["All Sectors", "AUTO", "FIN SERVICE", "NIFTY 50"], key="i_sec", label_visibility="collapsed")
             with i_f3:
-                i_search = st.text_input("Search Boost", placeholder="🔍 Search...", key="i_search", label_visibility="collapsed")
+                i_search = st.text_input("Search", placeholder="🔍 Search...", key="i_sr", label_visibility="collapsed")
 
-            i_f4, i_f5 = st.columns([1, 1])
-            with i_f4:
-                i_beta = st.selectbox("Beta / Momentum", ["Neutral", "High Momentum (> 1.5)", "Super Surge (> 3.0)"], key="i_beta")
-            with i_f5:
-                i_sector = st.selectbox("Boost Sector", ["All"] + list(SECTOR_DATA.keys()), key="i_sector")
-
-            boost_df = df_data.copy()
-            
-            # Apply Filters
-            if i_sector != "All":
-                boost_df = boost_df[boost_df['Sector'] == i_sector]
+            i_df = df_data.copy()
             if i_search:
-                boost_df = boost_df[boost_df['Symbol'].str.contains(i_search.upper(), na=False)]
+                i_df = i_df[i_df['Symbol'].str.contains(i_search.upper(), na=False)]
+            if i_sec != "All Sectors":
+                i_df = i_df[i_df['Sector'] == i_sec]
             if i_trend == "Bullish 🟢":
-                boost_df = boost_df[boost_df['Change %'] >= 0]
+                i_df = i_df[i_df['Change %'] >= 0]
             elif i_trend == "Bearish 🔴":
-                boost_df = boost_df[boost_df['Change %'] < 0]
+                i_df = i_df[i_df['Change %'] < 0]
 
-            if i_price == "< ₹500":
-                boost_df = boost_df[boost_df['Price'] < 500]
-            elif i_price == "₹500-₹2000":
-                boost_df = boost_df[(boost_df['Price'] >= 500) & (boost_df['Price'] <= 2000)]
-            elif i_price == "> ₹2000":
-                boost_df = boost_df[boost_df['Price'] > 2000]
+            # Table Render
+            table_html_boost = """
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th style="text-align:center;">%</th>
+                        <th>R.Fac 🪟</th>
+                        <th style="text-align:center;">Signal</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
+            for _, row in i_df.head(9).iterrows():
+                pct_html = f'<span class="pct-pill-green">{row["Change %"]:+.2f}</span>' if row['Change %'] >= 0 else f'<span class="pct-pill-red">{row["Change %"]:.2f}</span>'
+                arrow_html = '<span class="arrow-up">⬆</span>' if row['Change %'] >= 0 else '<span class="arrow-down">⬇</span>'
+                chart_link = f'https://in.tradingview.com/chart/?symbol=NSE:{row["Symbol"]}'
+                
+                table_html_boost += f"""
+                <tr>
+                    <td>
+                        <div class="sym-flex">
+                            <span class="sym-text">{row['Symbol']}</span>
+                            <a href="{chart_link}" target="_blank" class="chart-icon-btn">📊+</a>
+                        </div>
+                    </td>
+                    <td style="text-align:center;">{pct_html}</td>
+                    <td class="signal-pct-text">{row['R Fact']}</td>
+                    <td style="text-align:center;">{arrow_html}</td>
+                </tr>
+                """
+            table_html_boost += "</tbody></table>"
+            st.markdown(table_html_boost, unsafe_allow_html=True)
 
-            if i_beta == "High Momentum (> 1.5)":
-                boost_df = boost_df[boost_df['R Fact'] >= 1.5]
-            elif i_beta == "Super Surge (> 3.0)":
-                boost_df = boost_df[boost_df['R Fact'] >= 3.0]
-
-            top_boost = boost_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-            top_boost['Change'] = top_boost['Change %'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
-            top_boost['Signal'] = top_boost['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
-
-            display_boost = top_boost[['Chart', 'Change', 'R Fact', 'Signal']].rename(
-                columns={'Chart': 'Symbol', 'Change': '%', 'R Fact': 'R.Fac ⚡'}
-            )
-            st.write(display_boost.to_html(escape=False, index=False), unsafe_allow_html=True)
-    else:
-        st.error("Market data load nahi ho pa raha hai.")
-
-# ==============================================================================
-# PAGE 2: SECTOR SCOPE
-# ==============================================================================
 elif page == "Sector Scope":
-    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Sector Scope</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#f8fafc; font-size:24px; font-weight:800;'>Sector Scope</h1>", unsafe_allow_html=True)
     if not df_data.empty:
         fig_map = px.treemap(
             df_data,
-            path=[px.Constant("HITISHAL SCANNER"), 'Sector', 'Symbol'],
-            values='Abs Change',
+            path=[px.Constant("SCANNER"), 'Sector', 'Symbol'],
+            values='Price',
             color='Change %',
-            color_continuous_scale=['#f87171', '#0f172a', '#4ade80'],
-            color_continuous_midpoint=0,
-            custom_data=['Change %']
-        )
-        fig_map.update_traces(texttemplate="<b>%{label}</b><br>%{customdata[0]:.2f}%")
-        fig_map.update_layout(
-            template="plotly_dark", 
-            margin=dict(t=20, l=0, r=0, b=0), 
-            height=550, 
-            paper_bgcolor="#090d16", 
-            plot_bgcolor="#090d16"
+            color_continuous_scale=['#f87171', '#0f172a', '#4ade80']
         )
         st.plotly_chart(fig_map, use_container_width=True)
-
-# ==============================================================================
-# PAGE 3 & 4: OTHER SECTIONS
-# ==============================================================================
-elif page == "Insider Strategy":
-    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800;'>Insider Strategy</h1>", unsafe_allow_html=True)
-    st.info("🎯 High Institutional Activity & Block Deals Scanner - Coming Soon.")
-
-elif page == "Swing Spectrum":
-    st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800;'>Swing Spectrum</h1>", unsafe_allow_html=True)
-    st.info("📈 Multi-day Swing Trade setups & EMA Crossover Scanner - Coming Soon.")
