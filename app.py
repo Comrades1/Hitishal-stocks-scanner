@@ -98,6 +98,7 @@ def fetch_sector_analytics():
                 if df.empty or len(df) < 20:
                     continue
                 
+                # RSI aur EMA background me calculate honge
                 df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean()
                 df['RSI'] = calculate_rsi(df['Close'], 14)
                 
@@ -131,9 +132,6 @@ def fetch_sector_analytics():
                     'Chart': make_tradingview_link(symbol_clean),
                     'Price': round(current_price, 2),
                     'Change %': round(pct_change, 2),
-                    'RSI (14)': round(rsi_val, 1) if pd.notna(rsi_val) else 50.0,
-                    '20-EMA': round(ema20_val, 2),
-                    'EMA Trend': 'Above 20-EMA' if above_ema else 'Below 20-EMA',
                     'R Fact': r_fact,
                     'Signal': signal
                 })
@@ -159,7 +157,7 @@ if not df_data.empty:
     if not top_movers.empty:
         st.success(f"Total **{len(top_movers)} stocks** moving above +{min_gain}% right now!")
         
-        display_top = top_movers[['Sector', 'Chart', 'Price', 'Change %', 'RSI (14)', '20-EMA', 'EMA Trend', 'R Fact', 'Signal']].rename(columns={'Chart': 'Symbol ↗'})
+        display_top = top_movers[['Sector', 'Chart', 'Price', 'Change %', 'R Fact', 'Signal']].rename(columns={'Chart': 'Symbol ↗'})
         st.write(display_top.to_html(escape=False, index=False), unsafe_allow_html=True)
     else:
         st.info(f"Abhi koi bhi stock +{min_gain}% se zyada move nahi kar raha hai.")
@@ -204,7 +202,7 @@ if not df_data.empty:
     if only_high_movers:
         sector_stocks = sector_stocks[sector_stocks['Change %'] >= min_gain]
 
-    display_sector = sector_stocks[['Chart', 'Price', 'Change %', 'RSI (14)', '20-EMA', 'EMA Trend', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
+    display_sector = sector_stocks[['Chart', 'Price', 'Change %', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
     
     st.write(display_sector.to_html(escape=False, index=False), unsafe_allow_html=True)
 
