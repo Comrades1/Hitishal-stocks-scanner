@@ -115,22 +115,33 @@ st.markdown("""
         border: 1px solid #1e293b;
         border-radius: 12px;
         padding: 16px;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     }
-    .card-title-row {
+    .card-header-flex {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
     }
-    .card-title {
-        font-size: 16px;
-        font-weight: 700;
-        color: #f8fafc;
+    .card-title-box {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
+    }
+    .card-title-text {
+        font-size: 16px;
+        font-weight: 800;
+        color: #f8fafc;
+        letter-spacing: 0.5px;
+    }
+    .how-to-use {
+        color: #38bdf8;
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: underline;
+        cursor: pointer;
+        margin-left: 8px;
     }
     
     /* Custom HTML Table Styling */
@@ -205,14 +216,18 @@ st.markdown("""
         text-align: center;
     }
     
-    .live-badge {
+    .live-badge-pill {
         background: #ef4444;
         color: white;
         font-size: 10px;
         font-weight: 800;
-        padding: 2px 6px;
-        border-radius: 4px;
-        margin-left: 6px;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+    
+    /* Compact Filter Select Boxes */
+    div[data-baseweb="select"] {
+        min-height: 32px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -368,7 +383,7 @@ with st.spinner("Fetching Market Data..."):
     df_data = fetch_sector_analytics()
 
 # ==============================================================================
-# PAGE 1: MARKET PULSE
+# PAGE 1: MARKET PULSE (MATCHING IMAGE EXACT FILTERS)
 # ==============================================================================
 if page == "Market Pulse":
     st.markdown("<h1 style='color:#f8fafc; font-size:28px; font-weight:800; margin-bottom:15px;'>Market Pulse 🦄</h1>", unsafe_allow_html=True)
@@ -376,28 +391,56 @@ if page == "Market Pulse":
     if not df_data.empty:
         col1, col2 = st.columns(2)
         
-        # --- BREAKOUT BEACON CARD ---
+        # --- 1. BREAKOUT BEACON CARD ---
         with col1:
             st.markdown("""
             <div class="trade-card">
-                <div class="card-title-row">
-                    <div class="card-title">🔥 BREAKOUT BEACON 💡 <span class="live-badge">LIVE</span></div>
+                <div class="card-header-flex">
+                    <div class="card-title-box">
+                        <span style="font-size:20px;">🕯️🔥</span>
+                        <span class="card-title-text">BREAKOUT BEACON</span>
+                        <span style="font-size:16px;">💡</span>
+                        <span class="how-to-use">How to use ▶</span>
+                        <span class="live-badge-pill">LIVE</span>
+                    </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
             
-            session_choice = st.selectbox(
-                "Time Window", 
-                ["🌅 Morning Session (09:15 - 11:30 AM)", "📈 Full Day / Live Market"],
-                key="beacon_session"
-            )
-            
+            # Beacon Search Bar & Dropdowns Row
+            b_head1, b_head2 = st.columns([1.2, 1])
+            with b_head1:
+                b_trend = st.selectbox("Trend Filter", ["Neutral", "Bullish 🟢", "Bearish 🔴"], key="b_trend", label_visibility="collapsed")
+            with b_head2:
+                b_search = st.text_input("Search Beacon", placeholder="🔍 Search Symbol...", key="b_search", label_visibility="collapsed")
+
+            b_sec_col, b_win_col = st.columns(2)
+            with b_sec_col:
+                sector_list = ["All"] + list(SECTOR_DATA.keys())
+                b_sector = st.selectbox("Sector", sector_list, key="b_sector")
+            with b_win_col:
+                b_window = st.selectbox("Time Window", ["🌅 Morning Session", "📈 Full Day / Live"], key="b_window")
+
             beacon_df = df_data.copy()
-            if session_choice == "🌅 Morning Session (09:15 - 11:30 AM)":
+            
+            # Apply Sector Filter
+            if b_sector != "All":
+                beacon_df = beacon_df[beacon_df['Sector'] == b_sector]
+                
+            # Apply Search Filter
+            if b_search:
+                beacon_df = beacon_df[beacon_df['Symbol'].str.contains(b_search.upper(), na=False)]
+
+            # Apply Trend Filter
+            if b_trend == "Bullish 🟢":
+                beacon_df = beacon_df[beacon_df['Change %'] >= 0]
+            elif b_trend == "Bearish 🔴":
+                beacon_df = beacon_df[beacon_df['Change %'] < 0]
+
+            if b_window == "🌅 Morning Session":
                 beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
                 beacon_df['Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-pill-bull">BULL</span>' if x >= 0 else '<span class="badge-pill-bear">BEAR</span>')
                 beacon_df['Change'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
-                
                 top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
                 display_beacon = top_breakouts[['Signal', 'Chart', 'Change', 'Score', 'Morning_Time']].rename(
                     columns={'Chart': 'Symbol', 'Change': '%', 'Score': 'Signal %', 'Morning_Time': 'Time'}
@@ -406,7 +449,6 @@ if page == "Market Pulse":
                 beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
                 beacon_df['Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-pill-bull">BULL</span>' if x >= 0 else '<span class="badge-pill-bear">BEAR</span>')
                 beacon_df['Change'] = beacon_df['Change %'].apply(lambda x: f'<span class="pct-box-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="pct-box-red">{x:.2f}%</span>')
-                
                 top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
                 display_beacon = top_breakouts[['Signal', 'Chart', 'Change', 'Score', 'Time']].rename(
                     columns={'Chart': 'Symbol', 'Change': '%', 'Score': 'Signal %'}
@@ -414,31 +456,59 @@ if page == "Market Pulse":
                 
             st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        # --- INTRADAY BOOST CARD ---
+        # --- 2. INTRADAY BOOST CARD ---
         with col2:
             st.markdown("""
             <div class="trade-card">
-                <div class="card-title-row">
-                    <div class="card-title">⚡ INTRADAY BOOST 🚀 <span class="live-badge">LIVE</span></div>
+                <div class="card-header-flex">
+                    <div class="card-title-box">
+                        <span style="font-size:20px;">🚀🔥</span>
+                        <span class="card-title-text">INTRADAY BOOST</span>
+                        <span style="font-size:16px;">💡</span>
+                        <span class="how-to-use">How to use ▶</span>
+                        <span class="live-badge-pill">LIVE</span>
+                    </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
             
-            f_col1, f_col2 = st.columns(2)
-            with f_col1:
-                trend_filter = st.selectbox("Trend", ["Neutral (All)", "Bullish Only 🟢", "Bearish Only 🔴"], key="boost_trend")
-            with f_col2:
-                vol_filter = st.selectbox("Volume Surge", ["All", "High (> 1.5)", "Super (> 3.0)"], key="boost_vol")
-            
+            # Exact Filter Row matching the reference image: (Trend, Price, Beta, Sector)
+            i_f1, i_f2, i_f3 = st.columns([1, 1, 1])
+            with i_f1:
+                i_trend = st.selectbox("Trend", ["Neutral", "Bullish 🟢", "Bearish 🔴"], key="i_trend", label_visibility="collapsed")
+            with i_f2:
+                i_price = st.selectbox("Price Range", ["All Prices", "< ₹500", "₹500-₹2000", "> ₹2000"], key="i_price", label_visibility="collapsed")
+            with i_f3:
+                i_search = st.text_input("Search Boost", placeholder="🔍 Search...", key="i_search", label_visibility="collapsed")
+
+            i_f4, i_f5 = st.columns([1, 1])
+            with i_f4:
+                i_beta = st.selectbox("Beta / Momentum", ["Neutral", "High Momentum (> 1.5)", "Super Surge (> 3.0)"], key="i_beta")
+            with i_f5:
+                i_sector = st.selectbox("Boost Sector", ["All"] + list(SECTOR_DATA.keys()), key="i_sector")
+
             boost_df = df_data.copy()
-            if trend_filter == "Bullish Only 🟢":
+            
+            # Apply Filters
+            if i_sector != "All":
+                boost_df = boost_df[boost_df['Sector'] == i_sector]
+            if i_search:
+                boost_df = boost_df[boost_df['Symbol'].str.contains(i_search.upper(), na=False)]
+            if i_trend == "Bullish 🟢":
                 boost_df = boost_df[boost_df['Change %'] >= 0]
-            elif trend_filter == "Bearish Only 🔴":
+            elif i_trend == "Bearish 🔴":
                 boost_df = boost_df[boost_df['Change %'] < 0]
-                
-            if vol_filter == "High (> 1.5)":
+
+            if i_price == "< ₹500":
+                boost_df = boost_df[boost_df['Price'] < 500]
+            elif i_price == "₹500-₹2000":
+                boost_df = boost_df[(boost_df['Price'] >= 500) & (boost_df['Price'] <= 2000)]
+            elif i_price == "> ₹2000":
+                boost_df = boost_df[boost_df['Price'] > 2000]
+
+            if i_beta == "High Momentum (> 1.5)":
                 boost_df = boost_df[boost_df['R Fact'] >= 1.5]
-            elif vol_filter == "Super (> 3.0)":
+            elif i_beta == "Super Surge (> 3.0)":
                 boost_df = boost_df[boost_df['R Fact'] >= 3.0]
 
             top_boost = boost_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
