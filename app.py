@@ -43,6 +43,11 @@ if st.sidebar.button("Logout"):
 # --- LOGIN SYSTEM END ---
 
 st.sidebar.markdown("---")
+
+# --- SIDEBAR NAVIGATION (Added as requested) ---
+st.sidebar.title("🧭 Dashboard Navigation")
+app_mode = st.sidebar.radio("Choose Section:", ["Market Pulse", "Sector Scope"])
+
 st_autorefresh(interval=30000, limit=None, key="sector_refresh")
 
 # Custom UI Styling
@@ -155,7 +160,6 @@ def fetch_sector_analytics():
                 stock = yf.Ticker(ticker)
                 df = stock.history(period='5d', interval='5m')
                 
-                # Fallback to 1d data if 5m is empty
                 if df.empty or len(df) < 5:
                     df = stock.history(period='5d', interval='1d')
                     if df.empty:
@@ -174,16 +178,13 @@ def fetch_sector_analytics():
                 if not df_today.empty:
                     open_price = df_today['Open'].iloc[0]
                     
-                    # VWAP
                     df_today['VWAP'] = (df_today['Volume'] * (df_today['High'] + df_today['Low'] + df_today['Close']) / 3).cumsum() / (df_today['Volume'].cumsum().replace(0, 1))
                     
-                    # Momentum metrics
                     df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
                     mean_vol = df_today['Volume'].mean()
                     df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
                     df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2, min_periods=1).mean()
                     
-                    # Window 09:15 - 11:30 AM
                     df_morning = df_today.between_time('09:15', '11:30')
                     
                     strong_breakouts = df_morning[
@@ -210,7 +211,6 @@ def fetch_sector_analytics():
                             max_dt = df_morning['High'].idxmax()
                             first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
 
-                # Current metrics
                 current_price = df['Close'].iloc[-1]
                 prev_close = df['Close'].iloc[0]
                 pct_change = round(((current_price - prev_close) / prev_close) * 100, 2)
@@ -218,7 +218,6 @@ def fetch_sector_analytics():
                 ema20_val = df['EMA20'].iloc[-1]
                 rsi_val = df['RSI'].iloc[-1]
                 
-                # --- OPTION 1: INTRADAY FAIR R-FACTOR CALCULATION ---
                 if not df_today.empty:
                     vol_recent = df_today['Volume'].iloc[-5:].mean()
                     vol_today_avg = df_today['Volume'].mean()
@@ -227,7 +226,6 @@ def fetch_sector_analytics():
                     vol_recent = df['Volume'].iloc[-5:].mean()
                     vol_avg = df['Volume'].mean()
                     r_fact = round((vol_recent / vol_avg), 2) if vol_avg > 0 else 1.0
-                # -----------------------------------------------------
 
                 above_ema = current_price > ema20_val
                 
@@ -272,175 +270,174 @@ with st.spinner("Calculating Momentum Indicators & Live Market Scans..."):
 
 if not df_data.empty:
     
-    st.subheader("🔥 Market Pulse Scanners")
-    
-    col1, col2 = st.columns(2)
-    
     market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
-    # --- LEFT COLUMN: BREAKOUT BEACON ---
-    with col1:
-        st.markdown(f"""
-        <div class="pulse-card">
-            <div class="pulse-header">🔥 BREAKOUT BEACON 💡 {market_badge}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # --- 1. MARKET PULSE SECTION ---
+    if app_mode == "Market Pulse":
+        st.subheader("🔥 Market Pulse Scanners")
         
-        session_choice = st.selectbox(
-            "⏱️ Select Time Window", 
-            ["🌅 Morning Session (09:15 - 11:30 AM)", "📈 Full Day / Live Market"],
-            key="beacon_session"
-        )
-        
-        beacon_df = df_data.copy()
-        
-        if session_choice == "🌅 Morning Session (09:15 - 11:30 AM)":
-            beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
-            beacon_df['Beacon_Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
-            beacon_df['Change_Badge'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+        col1, col2 = st.columns(2)
+
+        # --- LEFT COLUMN: BREAKOUT BEACON ---
+        with col1:
+            st.markdown(f"""
+            <div class="pulse-card">
+                <div class="pulse-header">🔥 BREAKOUT BEACON 💡 {market_badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-            display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Score', 'Morning_Time']].rename(
-                columns={
-                    'Beacon_Signal': 'Signal', 
-                    'Chart': 'Symbol', 
-                    'Change_Badge': '%', 
-                    'Score': 'Signal %',
-                    'Morning_Time': 'Time'
-                }
-            )
-        else:
-            beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
-            beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
-            beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
-            
-            top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-            display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Score', 'Time']].rename(
-                columns={
-                    'Beacon_Signal': 'Signal', 
-                    'Chart': 'Symbol', 
-                    'Change_Badge': '%', 
-                    'Score': 'Signal %',
-                    'Time': 'Time'
-                }
+            session_choice = st.selectbox(
+                "⏱️ Select Time Window", 
+                ["🌅 Morning Session (09:15 - 11:30 AM)", "📈 Full Day / Live Market"],
+                key="beacon_session"
             )
             
-        st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-    # --- RIGHT COLUMN: INTRADAY BOOST ---
-    with col2:
-        st.markdown(f"""
-        <div class="pulse-card">
-            <div class="pulse-header">⚡ INTRADAY BOOST 🚀 {market_badge}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-        with f_col1:
-            trend_filter = st.selectbox("↕️ Trend", ["Neutral (All)", "Bullish Only 🟢", "Bearish Only 🔴"], key="boost_trend")
-        with f_col2:
-            price_filter = st.selectbox("₹ Price", ["All Prices", "< ₹500", "₹500 - ₹2000", "> ₹2000"], key="boost_price")
-        with f_col3:
-            vol_filter = st.selectbox("⚡ Volume", ["All", "High (> 1.5)", "Super (> 3.0)"], key="boost_vol")
-        with f_col4:
-            sector_filter = st.selectbox("🎯 Sector", ["All Sectors"] + list(SECTOR_DATA.keys()), key="boost_sector")
-        
-        boost_filtered_df = df_data.copy()
-        
-        if trend_filter == "Bullish Only 🟢":
-            boost_filtered_df = boost_filtered_df[boost_filtered_df['Change %'] >= 0]
-        elif trend_filter == "Bearish Only 🔴":
-            boost_filtered_df = boost_filtered_df[boost_filtered_df['Change %'] < 0]
+            beacon_df = df_data.copy()
             
-        if price_filter == "< ₹500":
-            boost_filtered_df = boost_filtered_df[boost_filtered_df['Price'] < 500]
-        elif price_filter == "₹500 - ₹2000":
-            boost_filtered_df = boost_filtered_df[(boost_filtered_df['Price'] >= 500) & (boost_filtered_df['Price'] <= 2000)]
-        elif price_filter == "> ₹2000":
-            boost_filtered_df = boost_filtered_df[boost_filtered_df['Price'] > 2000]
-            
-        if vol_filter == "High (> 1.5)":
-            boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 1.5]
-        elif vol_filter == "Super (> 3.0)":
-            boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 3.0]
-            
-        if sector_filter != "All Sectors":
-            boost_filtered_df = boost_filtered_df[boost_filtered_df['Sector'] == sector_filter]
+            if session_choice == "🌅 Morning Session (09:15 - 11:30 AM)":
+                beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
+                beacon_df['Beacon_Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
+                beacon_df['Change_Badge'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+                
+                top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
+                display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Score', 'Morning_Time']].rename(
+                    columns={
+                        'Beacon_Signal': 'Signal', 
+                        'Chart': 'Symbol', 
+                        'Change_Badge': '%', 
+                        'Score': 'Signal %',
+                        'Morning_Time': 'Time'
+                    }
+                )
+            else:
+                beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
+                beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
+                beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+                
+                top_breakouts = beacon_df.sort_values(by='Score', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
+                display_beacon = top_breakouts[['Beacon_Signal', 'Chart', 'Change_Badge', 'Score', 'Time']].rename(
+                    columns={
+                        'Beacon_Signal': 'Signal', 
+                        'Chart': 'Symbol', 
+                        'Change_Badge': '%', 
+                        'Score': 'Signal %',
+                        'Time': 'Time'
+                    }
+                )
+                
+            st.write(display_beacon.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-        boost_df = boost_filtered_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
-        boost_df['Boost_Signal'] = boost_df['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
-        boost_df['Change_Badge'] = boost_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+        # --- RIGHT COLUMN: INTRADAY BOOST ---
+        with col2:
+            st.markdown(f"""
+            <div class="pulse-card">
+                <div class="pulse-header">⚡ INTRADAY BOOST 🚀 {market_badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+            with f_col1:
+                trend_filter = st.selectbox("↕️ Trend", ["Neutral (All)", "Bullish Only 🟢", "Bearish Only 🔴"], key="boost_trend")
+            with f_col2:
+                price_filter = st.selectbox("₹ Price", ["All Prices", "< ₹500", "₹500 - ₹2000", "> ₹2000"], key="boost_price")
+            with f_col3:
+                vol_filter = st.selectbox("⚡ Volume", ["All", "High (> 1.5)", "Super (> 3.0)"], key="boost_vol")
+            with f_col4:
+                sector_filter = st.selectbox("🎯 Sector", ["All Sectors"] + list(SECTOR_DATA.keys()), key="boost_sector")
+            
+            boost_filtered_df = df_data.copy()
+            
+            if trend_filter == "Bullish Only 🟢":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['Change %'] >= 0]
+            elif trend_filter == "Bearish Only 🔴":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['Change %'] < 0]
+                
+            if price_filter == "< ₹500":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['Price'] < 500]
+            elif price_filter == "₹500 - ₹2000":
+                boost_filtered_df = boost_filtered_df[(boost_filtered_df['Price'] >= 500) & (boost_filtered_df['Price'] <= 2000)]
+            elif price_filter == "> ₹2000":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['Price'] > 2000]
+                
+            if vol_filter == "High (> 1.5)":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 1.5]
+            elif vol_filter == "Super (> 3.0)":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 3.0]
+                
+            if sector_filter != "All Sectors":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['Sector'] == sector_filter]
 
-        display_boost = boost_df[['Chart', 'Change_Badge', 'R Fact', 'Boost_Signal']].rename(
-            columns={'Chart': 'Symbol', 'Change_Badge': '%', 'R Fact': 'R.Fac ⚡', 'Boost_Signal': 'Signal'}
+            boost_df = boost_filtered_df.sort_values(by='R Fact', ascending=False).drop_duplicates(subset=['Symbol']).head(9)
+            boost_df['Boost_Signal'] = boost_df['Change %'].apply(lambda x: '🟢 ⬆️' if x >= 0 else '🔴 ⬇️')
+            boost_df['Change_Badge'] = boost_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
+
+            display_boost = boost_df[['Chart', 'Change_Badge', 'R Fact', 'Boost_Signal']].rename(
+                columns={'Chart': 'Symbol', 'Change_Badge': '%', 'R Fact': 'R.Fac ⚡', 'Boost_Signal': 'Signal'}
+            )
+            st.write(display_boost.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    # --- 2. SECTOR SCOPE SECTION ---
+    elif app_mode == "Sector Scope":
+        st.subheader("MAP Sector Heatmap")
+        fig_map = px.treemap(
+            df_data,
+            path=[px.Constant("Sector Scope"), 'Sector', 'Symbol'],
+            values='Abs Change',
+            color='Change %',
+            color_continuous_scale=['#FF1744', '#1c2128', '#00E676'],
+            color_continuous_midpoint=0,
+            custom_data=['Change %']
         )
-        st.write(display_boost.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # --- 2. SECTOR HEATMAP ---
-    st.subheader("MAP Sector Heatmap")
-    fig_map = px.treemap(
-        df_data,
-        path=[px.Constant("Sector Scope"), 'Sector', 'Symbol'],
-        values='Abs Change',
-        color='Change %',
-        color_continuous_scale=['#FF1744', '#1c2128', '#00E676'],
-        color_continuous_midpoint=0,
-        custom_data=['Change %']
-    )
-    fig_map.update_traces(
-        texttemplate="<b>%{label}</b><br>%{customdata[0]:.2f}%"
-    )
-    fig_map.update_layout(
-        template="plotly_dark", 
-        margin=dict(t=30, l=10, r=10, b=10), 
-        height=550, 
-        paper_bgcolor="#0d1117", 
-        plot_bgcolor="#0d1117"
-    )
-    st.plotly_chart(fig_map, use_container_width=True)
-
-    st.markdown("---")
-
-    # --- 3. SECTOR MOMENTUM RANKING ---
-    sector_summary = df_data.groupby('Sector').agg(
-        Avg_Change=('Change %', 'mean'),
-        Bullish_Count=('Change %', lambda x: (x > 0).sum()),
-        Total_Count=('Symbol', 'count')
-    ).reset_index()
-
-    sector_summary['Raw_Score'] = sector_summary['Avg_Change'] * (sector_summary['Bullish_Count'] / sector_summary['Total_Count'])
-    max_val = sector_summary['Raw_Score'].abs().max()
-    sector_summary['Strength Score'] = (sector_summary['Raw_Score'] / max_val * 10).round(2) if max_val > 0 else 0
-    sector_summary = sector_summary.sort_values(by='Strength Score', ascending=False)
-
-    bar_colors = ['#00E676' if score >= 0 else '#FF1744' for score in sector_summary['Strength Score']]
-
-    st.subheader("📊 Sector Momentum Ranking")
-    fig_bar = go.Figure(data=[
-        go.Bar(
-            x=sector_summary['Sector'], y=sector_summary['Strength Score'],
-            text=sector_summary['Strength Score'], textposition='outside',
-            marker_color=bar_colors, width=0.45
+        fig_map.update_traces(
+            texttemplate="<b>%{label}</b><br>%{customdata[0]:.2f}%"
         )
-    ])
-    fig_bar.update_layout(
-        template="plotly_dark", height=450, paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
-        xaxis=dict(tickangle=0, showgrid=False, title=None, tickfont=dict(size=11, color='#c9d1d9')),
-        yaxis=dict(title="Strength Score (-10 to +10)", range=[-12, 12], showgrid=True, gridcolor="#21262d"),
-        margin=dict(t=30, b=50, l=40, r=20)
-    )
-    st.plotly_chart(fig_bar, use_container_width=True)
+        fig_map.update_layout(
+            template="plotly_dark", 
+            margin=dict(t=30, l=10, r=10, b=10), 
+            height=550, 
+            paper_bgcolor="#0d1117", 
+            plot_bgcolor="#0d1117"
+        )
+        st.plotly_chart(fig_map, use_container_width=True)
 
-    st.markdown("---")
+        st.markdown("---")
 
-    # --- 4. SECTOR DRILL-DOWN TABLE ---
-    st.subheader("🎯 Sector Drill-down")
-    selected_sector = st.selectbox("Select Sector to Inspect:", options=sector_summary['Sector'].tolist())
-    sector_stocks = df_data[df_data['Sector'] == selected_sector]
-    display_sector = sector_stocks[['Chart', 'Price', 'Change %', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
-    st.write(display_sector.to_html(escape=False, index=False), unsafe_allow_html=True)
+        sector_summary = df_data.groupby('Sector').agg(
+            Avg_Change=('Change %', 'mean'),
+            Bullish_Count=('Change %', lambda x: (x > 0).sum()),
+            Total_Count=('Symbol', 'count')
+        ).reset_index()
+
+        sector_summary['Raw_Score'] = sector_summary['Avg_Change'] * (sector_summary['Bullish_Count'] / sector_summary['Total_Count'])
+        max_val = sector_summary['Raw_Score'].abs().max()
+        sector_summary['Strength Score'] = (sector_summary['Raw_Score'] / max_val * 10).round(2) if max_val > 0 else 0
+        sector_summary = sector_summary.sort_values(by='Strength Score', ascending=False)
+
+        bar_colors = ['#00E676' if score >= 0 else '#FF1744' for score in sector_summary['Strength Score']]
+
+        st.subheader("📊 Sector Momentum Ranking")
+        fig_bar = go.Figure(data=[
+            go.Bar(
+                x=sector_summary['Sector'], y=sector_summary['Strength Score'],
+                text=sector_summary['Strength Score'], textposition='outside',
+                marker_color=bar_colors, width=0.45
+            )
+        ])
+        fig_bar.update_layout(
+            template="plotly_dark", height=450, paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+            xaxis=dict(tickangle=0, showgrid=False, title=None, tickfont=dict(size=11, color='#c9d1d9')),
+            yaxis=dict(title="Strength Score (-10 to +10)", range=[-12, 12], showgrid=True, gridcolor="#21262d"),
+            margin=dict(t=30, b=50, l=40, r=20)
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.markdown("---")
+
+        st.subheader("🎯 Sector Drill-down")
+        selected_sector = st.selectbox("Select Sector to Inspect:", options=sector_summary['Sector'].tolist())
+        sector_stocks = df_data[df_data['Sector'] == selected_sector]
+        display_sector = sector_stocks[['Chart', 'Price', 'Change %', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
+        st.write(display_sector.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 else:
     st.error("Data fetch nahi ho raha hai, thodi der baad refresh karein.")
