@@ -12,7 +12,8 @@ st.set_page_config(page_title="Sector Scope - Smart Scanner", layout="wide", ini
 # --- LOGIN SYSTEM START ---
 USER_CREDENTIALS = {
     "admin": "12345",
-    "ASHWAJIT": "pass123"
+    "ASHWAJIT": "pass123",
+    "HARSHAL": "Shalvi@3009"
 }
 
 if "authenticated" not in st.session_state:
@@ -216,7 +217,7 @@ def fetch_sector_analytics():
                     df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
                     df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2, min_periods=1).mean()
                     
-                    # 10-Minute Opening Range Breakout (ORB) calculation (First 2 candles of 5m = 10 mins)
+                    # 10-Minute Opening Range Breakout (ORB) calculation
                     orb_high = df_today.iloc[:2]['High'].max() if len(df_today) >= 2 else df_today['High'].iloc[0]
                     df_after_orb = df_today.between_time('09:25', '11:30') if not df_today.empty else df_today
                     
@@ -259,7 +260,6 @@ def fetch_sector_analytics():
 
                 above_ema = current_price > ema20_val
                 
-                # Signal Logic with 10-Min ORB & Volume >= 2.5 + RSI > 60 Alignment
                 if above_ema and rsi_val > 60 and r_fact >= 2.5:
                     signal = '<span class="badge-strong-buy">💥 🚀 Explosive Buy</span>'
                 elif above_ema and rsi_val > 55 and r_fact > 1.2:
@@ -318,6 +318,23 @@ with st.spinner("Calculating Momentum Indicators & Live Market Scans..."):
 
 if not df_data.empty:
     
+    # Calculate Sector Strength Ranking to filter top sectors for Breakout Beacon
+    sector_summary = df_data.groupby('Sector').agg(
+        Avg_Change=('Change %', 'mean'),
+        Bullish_Count=('Change %', lambda x: (x > 0).sum()),
+        Total_Count=('Symbol', 'count')
+    ).reset_index()
+
+    sector_summary['Bearish_Count'] = sector_summary['Total_Count'] - sector_summary['Bullish_Count']
+    sector_summary['Breadth_Ratio'] = (sector_summary['Bullish_Count'] - sector_summary['Bearish_Count']) / sector_summary['Total_Count']
+    sector_summary['Raw_Score'] = sector_summary['Avg_Change'] * (1 + sector_summary['Breadth_Ratio'])
+    
+    max_val = sector_summary['Raw_Score'].abs().max()
+    sector_summary['Strength Score'] = (sector_summary['Raw_Score'] / max_val * 10).round(2) if max_val > 0 else 0
+    
+    # Filter only top/positive sectors from the Heatmap ranking (Strength Score > 0)
+    top_sectors = sector_summary[sector_summary['Strength Score'] > 0]['Sector'].tolist()
+
     market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
     # --- 1. MARKET PULSE SECTION ---
@@ -326,11 +343,11 @@ if not df_data.empty:
         
         col1, col2 = st.columns(2)
 
-        # --- LEFT COLUMN: BREAKOUT BEACON ---
+        # --- LEFT COLUMN: BREAKOUT BEACON (Filtered strictly from Top Heatmap Sectors) ---
         with col1:
             st.markdown(f"""
             <div class="pulse-card">
-                <div class="pulse-header">🔥 BREAKOUT BEACON 💡 {market_badge}</div>
+                <div class="pulse-header">🔥 BREAKOUT BEACON (Top Sectors) 💡 {market_badge}</div>
             </div>
             """, unsafe_allow_html=True)
             
@@ -340,7 +357,10 @@ if not df_data.empty:
                 key="beacon_session"
             )
             
-            beacon_df = df_data.copy()
+            # Filter df_data to only include stocks from top-performing heatmap sectors
+            beacon_df = df_data[df_data['Sector'].isin(top_sectors)].copy()
+            if beacon_df.empty:
+                beacon_df = df_data.copy() # Fallback if no sector has > 0 score
             
             if session_choice == "🌅 Morning Session (09:15 - 11:30 AM)":
                 beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
@@ -452,20 +472,7 @@ if not df_data.empty:
 
         st.markdown("---")
 
-        sector_summary = df_data.groupby('Sector').agg(
-            Avg_Change=('Change %', 'mean'),
-            Bullish_Count=('Change %', lambda x: (x > 0).sum()),
-            Total_Count=('Symbol', 'count')
-        ).reset_index()
-
-        sector_summary['Bearish_Count'] = sector_summary['Total_Count'] - sector_summary['Bullish_Count']
-        sector_summary['Breadth_Ratio'] = (sector_summary['Bullish_Count'] - sector_summary['Bearish_Count']) / sector_summary['Total_Count']
-        sector_summary['Raw_Score'] = sector_summary['Avg_Change'] * (1 + sector_summary['Breadth_Ratio'])
-        
-        max_val = sector_summary['Raw_Score'].abs().max()
-        sector_summary['Strength Score'] = (sector_summary['Raw_Score'] / max_val * 10).round(2) if max_val > 0 else 0
         sector_summary = sector_summary.sort_values(by='Strength Score', ascending=False)
-
         bar_colors = ['#00E676' if score >= 0 else '#FF1744' for score in sector_summary['Strength Score']]
 
         st.subheader("📊 Sector Momentum Ranking")
