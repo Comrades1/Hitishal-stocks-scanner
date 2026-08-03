@@ -37,6 +37,13 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 st.sidebar.write("Logged in successfully!")
+
+# Cache Clear Button to force refresh data
+if st.sidebar.button("🧹 Clear Cache & Refresh"):
+    st.cache_data.clear()
+    st.success("Cache cleared successfully!")
+    st.rerun()
+
 if st.sidebar.button("Logout"):
     st.session_state["authenticated"] = False
     st.rerun()
