@@ -173,6 +173,12 @@ def fetch_sector_analytics():
                 
                 if df.empty or len(df) < 5:
                     df = stock.history(period='5d', interval='1d')
+                    if df.empty and ticker == 'LTIM.NS':
+                        # Fallback for LTIM if NSE fails on Yahoo Finance
+                        stock_fallback = yf.Ticker('LTIM.BO')
+                        df = stock_fallback.history(period='5d', interval='5m')
+                        if df.empty or len(df) < 5:
+                            df = stock_fallback.history(period='5d', interval='1d')
                     if df.empty:
                         continue
                 
@@ -251,8 +257,8 @@ def fetch_sector_analytics():
                 else:
                     signal = '<span class="badge-hold">❌ Hold</span>'
                 
-                # FIXED: Force LTIM to show up as LTM cleanly
-                symbol_clean = ticker.replace('.NS', '').replace('LTIM', 'LTM')
+                # Force LTIM to show up as LTM cleanly
+                symbol_clean = ticker.replace('.NS', '').replace('.BO', '').replace('LTIM', 'LTM')
                 last_candle_time = df.index[-1]
                 formatted_time = last_candle_time.strftime('%H:%M') if hasattr(last_candle_time, 'strftime') else str(last_candle_time)[11:16]
                 
