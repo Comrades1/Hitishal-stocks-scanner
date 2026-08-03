@@ -12,8 +12,7 @@ st.set_page_config(page_title="Sector Scope - Smart Scanner", layout="wide", ini
 # --- LOGIN SYSTEM START ---
 USER_CREDENTIALS = {
     "admin": "12345",
-    "ASHWAJIT": "pass123",
-    "HARSHAL": "Shalvi@3009"
+    "ASHWAJIT": "pass123"
 }
 
 if "authenticated" not in st.session_state:
@@ -217,26 +216,27 @@ def fetch_sector_analytics():
                     df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
                     df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2, min_periods=1).mean()
                     
-                    df_morning = df_today.between_time('09:15', '11:30')
-                    strong_breakouts = df_morning[
-                        (df_morning['Close'] >= df_morning['VWAP']) & 
-                        (df_morning['Pct_From_Open'].abs() >= 1.2) & 
-                        (df_morning['Rolling_Vol_Ratio'] >= 1.5)
-                    ]
+                    # 10-Minute Opening Range Breakout (ORB) calculation (First 2 candles of 5m = 10 mins)
+                    orb_high = df_today.iloc[:2]['High'].max() if len(df_today) >= 2 else df_today['High'].iloc[0]
+                    df_after_orb = df_today.between_time('09:25', '11:30') if not df_today.empty else df_today
                     
-                    if not strong_breakouts.empty:
-                        first_dt = strong_breakouts.index[0]
-                        first_breakout_time = first_dt.strftime('%H:%M') if hasattr(first_dt, 'strftime') else str(first_dt)[11:16]
-                        morning_change = strong_breakouts['Pct_From_Open'].iloc[0]
-                        morning_vol_spike = round(strong_breakouts['Rolling_Vol_Ratio'].iloc[0], 2)
-                    else:
-                        moderate_breakouts = df_morning[(df_morning['Pct_From_Open'].abs() >= 1.0) & (df_morning['Vol_Ratio'] >= 1.2)]
-                        if not moderate_breakouts.empty:
-                            first_dt = moderate_breakouts.index[0]
+                    exp_triggered = False
+                    if not df_after_orb.empty:
+                        exp_rows = df_after_orb[
+                            (df_after_orb['Close'] > orb_high) & 
+                            (df_after_orb['Close'] >= df_after_orb['VWAP']) & 
+                            (df_after_orb['Vol_Ratio'] >= 2.5)
+                        ]
+                        if not exp_rows.empty:
+                            exp_triggered = True
+                            first_dt = exp_rows.index[0]
                             first_breakout_time = first_dt.strftime('%H:%M') if hasattr(first_dt, 'strftime') else str(first_dt)[11:16]
-                            morning_change = moderate_breakouts['Pct_From_Open'].iloc[0]
-                            morning_vol_spike = round(moderate_breakouts['Vol_Ratio'].iloc[0], 2)
-                        elif not df_morning.empty:
+                            morning_change = ((exp_rows['Close'].iloc[0] - open_price) / open_price) * 100
+                            morning_vol_spike = round(exp_rows['Vol_Ratio'].iloc[0], 2)
+                    
+                    if not exp_triggered:
+                        df_morning = df_today.between_time('09:15', '11:30')
+                        if not df_morning.empty:
                             morning_max = df_morning['High'].max()
                             morning_change = ((morning_max - open_price) / open_price) * 100
                             max_dt = df_morning['High'].idxmax()
@@ -259,7 +259,7 @@ def fetch_sector_analytics():
 
                 above_ema = current_price > ema20_val
                 
-                # Enhanced Signal Logic with Explosive Breakout Rules
+                # Signal Logic with 10-Min ORB & Volume >= 2.5 + RSI > 60 Alignment
                 if above_ema and rsi_val > 60 and r_fact >= 2.5:
                     signal = '<span class="badge-strong-buy">💥 🚀 Explosive Buy</span>'
                 elif above_ema and rsi_val > 55 and r_fact > 1.2:
