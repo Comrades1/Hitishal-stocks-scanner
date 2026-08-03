@@ -215,33 +215,14 @@ def fetch_sector_analytics():
                     df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
                     mean_vol = df_today['Volume'].mean()
                     df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
-                    df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2, min_periods=1).mean()
                     
-                    # 10-Minute Opening Range Breakout (ORB) calculation
-                    orb_high = df_today.iloc[:2]['High'].max() if len(df_today) >= 2 else df_today['High'].iloc[0]
-                    df_after_orb = df_today.between_time('09:25', '11:30') if not df_today.empty else df_today
-                    
-                    exp_triggered = False
-                    if not df_after_orb.empty:
-                        exp_rows = df_after_orb[
-                            (df_after_orb['Close'] > orb_high) & 
-                            (df_after_orb['Close'] >= df_after_orb['VWAP']) & 
-                            (df_after_orb['Vol_Ratio'] >= 2.5)
-                        ]
-                        if not exp_rows.empty:
-                            exp_triggered = True
-                            first_dt = exp_rows.index[0]
-                            first_breakout_time = first_dt.strftime('%H:%M') if hasattr(first_dt, 'strftime') else str(first_dt)[11:16]
-                            morning_change = ((exp_rows['Close'].iloc[0] - open_price) / open_price) * 100
-                            morning_vol_spike = round(exp_rows['Vol_Ratio'].iloc[0], 2)
-                    
-                    if not exp_triggered:
-                        df_morning = df_today.between_time('09:15', '11:30')
-                        if not df_morning.empty:
-                            morning_max = df_morning['High'].max()
-                            morning_change = ((morning_max - open_price) / open_price) * 100
-                            max_dt = df_morning['High'].idxmax()
-                            first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
+                    df_morning = df_today.between_time('09:15', '11:30')
+                    if not df_morning.empty:
+                        morning_max = df_morning['High'].max()
+                        morning_change = ((morning_max - open_price) / open_price) * 100
+                        max_dt = df_morning['High'].idxmax()
+                        first_breakout_time = max_dt.strftime('%H:%M') if hasattr(max_dt, 'strftime') else str(max_dt)[11:16]
+                        morning_vol_spike = round(df_morning['Vol_Ratio'].mean(), 2) if 'Vol_Ratio' in df_morning else 1.0
                 else:
                     prev_close = df['Close'].iloc[0]
                     pct_change = round(((current_price - prev_close) / prev_close) * 100, 2)
@@ -260,15 +241,16 @@ def fetch_sector_analytics():
 
                 above_ema = current_price > ema20_val
                 
-                if above_ema and rsi_val > 60 and r_fact >= 2.5:
+                # Balanced Signal Logic for better stock capturing
+                if above_ema and rsi_val > 55 and r_fact >= 1.6:
                     signal = '<span class="badge-strong-buy">💥 🚀 Explosive Buy</span>'
-                elif above_ema and rsi_val > 55 and r_fact > 1.2:
+                elif above_ema and rsi_val > 52 and r_fact > 1.2:
                     signal = '<span class="badge-strong-buy">🚀 ⬆️ Strong Buy</span>'
-                elif above_ema and rsi_val > 50:
+                elif above_ema and rsi_val > 48:
                     signal = '<span class="badge-buy">⬆️ Buy</span>'
-                elif not above_ema and rsi_val < 40 and r_fact > 1.2:
+                elif not above_ema and rsi_val < 42 and r_fact > 1.2:
                     signal = '<span class="badge-strong-sell">🚀 ⬇️ Strong Sell</span>'
-                elif not above_ema and rsi_val < 45:
+                elif not above_ema and rsi_val < 48:
                     signal = '<span class="badge-sell">⬇️ Sell</span>'
                 else:
                     signal = '<span class="badge-hold">❌ Hold</span>'
@@ -318,7 +300,7 @@ with st.spinner("Calculating Momentum Indicators & Live Market Scans..."):
 
 if not df_data.empty:
     
-    # Calculate Sector Strength Ranking to filter top sectors for Breakout Beacon
+    # Calculate Sector Strength Ranking
     sector_summary = df_data.groupby('Sector').agg(
         Avg_Change=('Change %', 'mean'),
         Bullish_Count=('Change %', lambda x: (x > 0).sum()),
@@ -331,9 +313,10 @@ if not df_data.empty:
     
     max_val = sector_summary['Raw_Score'].abs().max()
     sector_summary['Strength Score'] = (sector_summary['Raw_Score'] / max_val * 10).round(2) if max_val > 0 else 0
-    
-    # Filter only top/positive sectors from the Heatmap ranking (Strength Score > 0)
-    top_sectors = sector_summary[sector_summary['Strength Score'] > 0]['Sector'].tolist()
+    sector_summary = sector_summary.sort_values(by='Strength Score', ascending=False)
+
+    # Top sectors from Heatmap (Top 8 sectors for broader stock coverage)
+    top_sectors = sector_summary.head(8)['Sector'].tolist()
 
     market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">● LIVE</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
@@ -343,7 +326,7 @@ if not df_data.empty:
         
         col1, col2 = st.columns(2)
 
-        # --- LEFT COLUMN: BREAKOUT BEACON (Filtered strictly from Top Heatmap Sectors) ---
+        # --- LEFT COLUMN: BREAKOUT BEACON ---
         with col1:
             st.markdown(f"""
             <div class="pulse-card">
@@ -357,10 +340,9 @@ if not df_data.empty:
                 key="beacon_session"
             )
             
-            # Filter df_data to only include stocks from top-performing heatmap sectors
             beacon_df = df_data[df_data['Sector'].isin(top_sectors)].copy()
             if beacon_df.empty:
-                beacon_df = df_data.copy() # Fallback if no sector has > 0 score
+                beacon_df = df_data.copy()
             
             if session_choice == "🌅 Morning Session (09:15 - 11:30 AM)":
                 beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
@@ -409,7 +391,7 @@ if not df_data.empty:
             with f_col2:
                 price_filter = st.selectbox("₹ Price", ["All Prices", "< ₹500", "₹500 - ₹2000", "> ₹2000"], key="boost_price")
             with f_col3:
-                vol_filter = st.selectbox("⚡ Volume", ["All", "High (> 1.5)", "Super (> 3.0)", "💥 Explosive (> 2.5)"], key="boost_vol")
+                vol_filter = st.selectbox("⚡ Volume", ["All", "High (> 1.3)", "Super (> 2.0)", "💥 Explosive (> 1.6)"], key="boost_vol")
             with f_col4:
                 sector_filter = st.selectbox("🎯 Sector", ["All Sectors"] + list(SECTOR_DATA.keys()), key="boost_sector")
             
@@ -427,12 +409,12 @@ if not df_data.empty:
             elif price_filter == "> ₹2000":
                 boost_filtered_df = boost_filtered_df[boost_filtered_df['Price'] > 2000]
                 
-            if vol_filter == "High (> 1.5)":
-                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 1.5]
-            elif vol_filter == "Super (> 3.0)":
-                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 3.0]
-            elif vol_filter == "💥 Explosive (> 2.5)":
-                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 2.5]
+            if vol_filter == "High (> 1.3)":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 1.3]
+            elif vol_filter == "Super (> 2.0)":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 2.0]
+            elif vol_filter == "💥 Explosive (> 1.6)":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 1.6]
                 
             if sector_filter != "All Sectors":
                 boost_filtered_df = boost_filtered_df[boost_filtered_df['Sector'] == sector_filter]
@@ -472,7 +454,6 @@ if not df_data.empty:
 
         st.markdown("---")
 
-        sector_summary = sector_summary.sort_values(by='Strength Score', ascending=False)
         bar_colors = ['#00E676' if score >= 0 else '#FF1744' for score in sector_summary['Strength Score']]
 
         st.subheader("📊 Sector Momentum Ranking")
