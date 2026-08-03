@@ -119,7 +119,7 @@ def is_market_open():
         return True
     return False
 
-# FIXED & COMPLETE SECTOR DATA (IT Sector Updated with Mphasis, OFSS, and LTIM)
+# SECTOR DATA
 SECTOR_DATA = {
     'AUTO': [
         'M&M.NS', 'MOTHERSON.NS', 'SAMVARDHANA.NS', 'MARUTI.NS', 'TATAMOTORS.NS', 
@@ -244,7 +244,8 @@ def fetch_sector_analytics():
                 else:
                     signal = '<span class="badge-hold">❌ Hold</span>'
                 
-                symbol_clean = ticker.replace('.NS', '')
+                # FIXED: Force LTIM to show up as LTM cleanly
+                symbol_clean = ticker.replace('.NS', '').replace('LTIM', 'LTM')
                 last_candle_time = df.index[-1]
                 formatted_time = last_candle_time.strftime('%H:%M') if hasattr(last_candle_time, 'strftime') else str(last_candle_time)[11:16]
                 
