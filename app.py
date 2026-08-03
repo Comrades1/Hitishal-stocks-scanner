@@ -408,7 +408,11 @@ if not df_data.empty:
             Total_Count=('Symbol', 'count')
         ).reset_index()
 
-        sector_summary['Raw_Score'] = sector_summary['Avg_Change'] * (sector_summary['Bullish_Count'] / sector_summary['Total_Count'])
+        # --- UPDATED BUG FIX LOGIC FOR SECTOR MOMENTUM RANKING ---
+        sector_summary['Bearish_Count'] = sector_summary['Total_Count'] - sector_summary['Bullish_Count']
+        sector_summary['Breadth_Ratio'] = (sector_summary['Bullish_Count'] - sector_summary['Bearish_Count']) / sector_summary['Total_Count']
+        sector_summary['Raw_Score'] = sector_summary['Avg_Change'] * (1 + sector_summary['Breadth_Ratio'])
+        
         max_val = sector_summary['Raw_Score'].abs().max()
         sector_summary['Strength Score'] = (sector_summary['Raw_Score'] / max_val * 10).round(2) if max_val > 0 else 0
         sector_summary = sector_summary.sort_values(by='Strength Score', ascending=False)
