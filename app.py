@@ -206,7 +206,6 @@ def fetch_sector_analytics():
                 morning_vol_spike = 1.0
                 first_breakout_time = "09:15"
                 
-                # Calculate intraday percentage change from today's 09:15 Open
                 current_price = df['Close'].iloc[-1]
                 if not df_today.empty:
                     open_price = df_today['Open'].iloc[0]
@@ -260,7 +259,10 @@ def fetch_sector_analytics():
 
                 above_ema = current_price > ema20_val
                 
-                if above_ema and rsi_val > 55 and r_fact > 1.2:
+                # Enhanced Signal Logic with Explosive Breakout Rules
+                if above_ema and rsi_val > 60 and r_fact >= 2.5:
+                    signal = '<span class="badge-strong-buy">💥 🚀 Explosive Buy</span>'
+                elif above_ema and rsi_val > 55 and r_fact > 1.2:
                     signal = '<span class="badge-strong-buy">🚀 ⬆️ Strong Buy</span>'
                 elif above_ema and rsi_val > 50:
                     signal = '<span class="badge-buy">⬆️ Buy</span>'
@@ -387,7 +389,7 @@ if not df_data.empty:
             with f_col2:
                 price_filter = st.selectbox("₹ Price", ["All Prices", "< ₹500", "₹500 - ₹2000", "> ₹2000"], key="boost_price")
             with f_col3:
-                vol_filter = st.selectbox("⚡ Volume", ["All", "High (> 1.5)", "Super (> 3.0)"], key="boost_vol")
+                vol_filter = st.selectbox("⚡ Volume", ["All", "High (> 1.5)", "Super (> 3.0)", "💥 Explosive (> 2.5)"], key="boost_vol")
             with f_col4:
                 sector_filter = st.selectbox("🎯 Sector", ["All Sectors"] + list(SECTOR_DATA.keys()), key="boost_sector")
             
@@ -409,6 +411,8 @@ if not df_data.empty:
                 boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 1.5]
             elif vol_filter == "Super (> 3.0)":
                 boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 3.0]
+            elif vol_filter == "💥 Explosive (> 2.5)":
+                boost_filtered_df = boost_filtered_df[boost_filtered_df['R Fact'] >= 2.5]
                 
             if sector_filter != "All Sectors":
                 boost_filtered_df = boost_filtered_df[boost_filtered_df['Sector'] == sector_filter]
