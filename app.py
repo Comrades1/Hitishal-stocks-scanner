@@ -44,7 +44,7 @@ if st.sidebar.button("Logout"):
 
 st.sidebar.markdown("---")
 
-# --- SIDEBAR NAVIGATION (Added as requested) ---
+# --- SIDEBAR NAVIGATION ---
 st.sidebar.title("🧭 Dashboard Navigation")
 app_mode = st.sidebar.radio("Choose Section:", ["Market Pulse", "Sector Scope"])
 
@@ -119,7 +119,7 @@ def is_market_open():
         return True
     return False
 
-# FIXED & COMPLETE SECTOR DATA
+# FIXED & COMPLETE SECTOR DATA (IT Sector Updated with Mphasis, OFSS, and LTIM)
 SECTOR_DATA = {
     'AUTO': [
         'M&M.NS', 'MOTHERSON.NS', 'SAMVARDHANA.NS', 'MARUTI.NS', 'TATAMOTORS.NS', 
@@ -132,7 +132,11 @@ SECTOR_DATA = {
     'SENSEX': ['RELIANCE.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'TCS.NS', 'BHARTIARTL.NS', 'SBIN.NS', 'KOTAKBANK.NS'],
     'ENERGY': ['RELIANCE.NS', 'NTPC.NS', 'POWERGRID.NS', 'ONGC.NS', 'GAIL.NS', 'BPCL.NS', 'TATAPOWER.NS', 'SUZLON.NS'],
     'PHARMA': ['SUNPHARMA.NS', 'CIPLA.NS', 'DRREDDY.NS', 'DIVISLAB.NS', 'LUPIN.NS', 'ZYDUSLIFE.NS', 'TORNTPHARM.NS', 'MANKIND.NS'],
-    'IT': ['TCS.NS', 'INFY.NS', 'HCLTECH.NS', 'WIPRO.NS', 'TECHM.NS', 'LTIM.NS', 'COFORGE.NS', 'PERSISTENT.NS'],
+    'IT': [
+        'LTIM.NS', 'TCS.NS', 'INFY.NS', 'MPHASIS.NS', 
+        'COFORGE.NS', 'WIPRO.NS', 'HCLTECH.NS', 'OFSS.NS', 
+        'PERSISTENT.NS', 'TECHM.NS'
+    ],
     'NIFTY MID SELECT': ['FEDERALBNK.NS', 'IDFCFIRSTB.NS', 'AUROPHARMA.NS', 'PERSISTENT.NS', 'COFORGE.NS', 'POLYCAB.NS', 'CUMMINSIND.NS'],
     'BANK': ['HDFCBANK.NS', 'ICICIBANK.NS', 'SBIN.NS', 'KOTAKBANK.NS', 'AXISBANK.NS', 'INDUSINDBK.NS', 'PNB.NS', 'BANKBARODA.NS'],
     'PSU BANK': ['SBIN.NS', 'PNB.NS', 'BANKBARODA.NS', 'CANBK.NS', 'UNIONBANK.NS', 'IOB.NS', 'CENTRALBK.NS', 'MAHABANK.NS'],
@@ -408,7 +412,6 @@ if not df_data.empty:
             Total_Count=('Symbol', 'count')
         ).reset_index()
 
-        # --- UPDATED BUG FIX LOGIC FOR SECTOR MOMENTUM RANKING ---
         sector_summary['Bearish_Count'] = sector_summary['Total_Count'] - sector_summary['Bullish_Count']
         sector_summary['Breadth_Ratio'] = (sector_summary['Bullish_Count'] - sector_summary['Bearish_Count']) / sector_summary['Total_Count']
         sector_summary['Raw_Score'] = sector_summary['Avg_Change'] * (1 + sector_summary['Breadth_Ratio'])
