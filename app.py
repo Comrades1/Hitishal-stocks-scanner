@@ -174,26 +174,12 @@ def fetch_sector_analytics():
                 if df.empty or len(df) < 5:
                     df = stock.history(period='5d', interval='1d')
                     if df.empty and ticker == 'LTIM.NS':
+                        # Fallback for LTIM if NSE fails on Yahoo Finance
                         stock_fallback = yf.Ticker('LTIM.BO')
                         df = stock_fallback.history(period='5d', interval='5m')
                         if df.empty or len(df) < 5:
                             df = stock_fallback.history(period='5d', interval='1d')
                     if df.empty:
-                        if ticker == 'LTIM.NS':
-                            all_stocks.append({
-                                'Sector': 'IT',
-                                'Symbol': 'LTM',
-                                'Chart': make_tradingview_link('LTM'),
-                                'Price': 0.0,
-                                'Change %': 0.0,
-                                'Abs Change': 0.1,
-                                'R Fact': 1.0,
-                                'Signal': '<span class="badge-hold">❌ Hold</span>',
-                                'Time': '09:15',
-                                'Morning_Change': 0.0,
-                                'Morning_Time': '09:15',
-                                'Morning_Vol_Spike': 1.0
-                            })
                         continue
                 
                 df['EMA20'] = df['Close'].ewm(span=20, adjust=False).mean() if len(df) >= 20 else df['Close']
@@ -208,13 +194,16 @@ def fetch_sector_analytics():
                 
                 if not df_today.empty:
                     open_price = df_today['Open'].iloc[0]
+                    
                     df_today['VWAP'] = (df_today['Volume'] * (df_today['High'] + df_today['Low'] + df_today['Close']) / 3).cumsum() / (df_today['Volume'].cumsum().replace(0, 1))
+                    
                     df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
                     mean_vol = df_today['Volume'].mean()
                     df_today['Vol_Ratio'] = df_today['Volume'] / (mean_vol if mean_vol > 0 else 1)
                     df_today['Rolling_Vol_Ratio'] = df_today['Vol_Ratio'].rolling(window=2, min_periods=1).mean()
                     
                     df_morning = df_today.between_time('09:15', '11:30')
+                    
                     strong_breakouts = df_morning[
                         (df_morning['Close'] >= df_morning['VWAP']) & 
                         (df_morning['Pct_From_Open'].abs() >= 1.2) & 
@@ -268,6 +257,7 @@ def fetch_sector_analytics():
                 else:
                     signal = '<span class="badge-hold">❌ Hold</span>'
                 
+                # Force LTIM to show up as LTM cleanly
                 symbol_clean = ticker.replace('.NS', '').replace('.BO', '').replace('LTIM', 'LTM')
                 last_candle_time = df.index[-1]
                 formatted_time = last_candle_time.strftime('%H:%M') if hasattr(last_candle_time, 'strftime') else str(last_candle_time)[11:16]
@@ -287,21 +277,6 @@ def fetch_sector_analytics():
                     'Morning_Vol_Spike': morning_vol_spike
                 })
             except Exception:
-                if ticker == 'LTIM.NS':
-                    all_stocks.append({
-                        'Sector': 'IT',
-                        'Symbol': 'LTM',
-                        'Chart': make_tradingview_link('LTM'),
-                        'Price': 0.0,
-                        'Change %': 0.0,
-                        'Abs Change': 0.1,
-                        'R Fact': 1.0,
-                        'Signal': '<span class="badge-hold">❌ Hold</span>',
-                        'Time': '09:15',
-                        'Morning_Change': 0.0,
-                        'Morning_Time': '09:15',
-                        'Morning_Vol_Spike': 1.0
-                    })
                 continue
                 
     return pd.DataFrame(all_stocks)
