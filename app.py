@@ -142,7 +142,6 @@ def start_fyers_websocket(access_token):
     )
     fyers_ws.connect()
 
-# Thread Initializer
 if "ws_started" not in st.session_state:
     if os.path.exists("fyers_token.txt"):
         with open("fyers_token.txt", "r") as f:
@@ -325,14 +324,30 @@ def fetch_base_analytics():
             morning_vol_spike = 1.0
             first_breakout_time = "09:15"
             vwap_val = df['Close'].iloc[-1]
+            buildup_status = "NEUTRAL"
             
             if not df_today.empty:
-                # --- BACKGROUND VWAP CALCULATION ---
+                # VWAP Calculation
                 df_today['Typical_Price'] = (df_today['High'] + df_today['Low'] + df_today['Close']) / 3
                 df_today['VP'] = df_today['Typical_Price'] * df_today['Volume']
                 cum_vol = df_today['Volume'].cumsum()
                 df_today['VWAP'] = df_today['VP'].cumsum() / (cum_vol.replace(0, 1))
                 vwap_val = round(df_today['VWAP'].iloc[-1], 2)
+
+                # --- LOGIC 4: DERIVATIVES PRICE-VOLUME BUILDUP CONFLUENCE ---
+                price_diff = df_today['Close'].diff()
+                vol_diff = df_today['Volume'].diff()
+                if not price_diff.empty and not vol_diff.empty:
+                    last_p_diff = price_diff.iloc[-1]
+                    last_v_diff = vol_diff.iloc[-1]
+                    if last_p_diff > 0 and last_v_diff > 0:
+                        buildup_status = "LONG_BUILDUP"
+                    elif last_p_diff < 0 and last_v_diff > 0:
+                        buildup_status = "SHORT_BUILDUP"
+                    elif last_p_diff > 0 and last_v_diff < 0:
+                        buildup_status = "SHORT_COVERING"
+                    else:
+                        buildup_status = "LONG_UNWINDING"
 
                 open_price = df_today['Open'].iloc[0]
                 df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
@@ -345,7 +360,7 @@ def fetch_base_analytics():
                     orb_low = df_orb_range['Low'].min()
                     df_post_orb = df_today.between_time('09:35', '11:30')
                     
-                    # --- VWAP FILTER INTEGRATED IN BEACON BREAKOUT ---
+                    # ORB + VWAP Confirmation Filter
                     orb_breakouts = df_post_orb[
                         ((df_post_orb['Close'] > orb_high) & (df_post_orb['Close'] > df_post_orb['VWAP'])) | 
                         ((df_post_orb['Close'] < orb_low) & (df_post_orb['Close'] < df_post_orb['VWAP']))
@@ -391,13 +406,22 @@ def fetch_base_analytics():
                 'VWAP': vwap_val,
                 'RSI': rsi_val,
                 'R Fact': r_fact,
+                'Buildup': buildup_status,
                 'Time': df.index[-1].strftime('%H:%M'),
                 'Morning_Change': round(morning_change, 2),
                 'Morning_Time': first_breakout_time,
                 'Morning_Vol_Spike': morning_vol_spike
             })
             
-    return pd.DataFrame(all_stocks)
+    df_result = pd.DataFrame(all_stocks)
+
+    # --- LOGIC 3: SECTOR ALIGNMENT CALCULATION ---
+    if not df_result.empty:
+        df_result['Change %'] = ((df_result['Price'] - df_result['PrevClose']) / df_result['PrevClose'] * 100).round(2)
+        sector_means = df_result.groupby('Sector')['Change %'].transform('mean')
+        df_result['Sector_Avg_Change'] = sector_means.round(2)
+    
+    return df_result
 
 def get_live_data():
     df_data = fetch_base_analytics().copy()
@@ -416,7 +440,6 @@ def get_live_data():
     df_data['Change %'] = ((df_data['Price'] - df_data['PrevClose']) / df_data['PrevClose'] * 100).round(2)
     df_data['Abs Change'] = df_data['Change %'].abs() + 0.1
 
-    # Cleaned Signals Logic (Background VWAP Confirm Filter Active)
     def generate_signal(row):
         price = row['Price']
         above_ema = price > row['EMA20']
@@ -467,7 +490,14 @@ if not df_data.empty:
             
             beacon_df = df_data.copy()
             
+            # --- LOGIC 3 + LOGIC 4 MULTI-CONFLUENCE FILTERING IN BEACON ---
             if session_choice == "🌅 Morning Session (ORB Based)":
+                # Sector Alignment Filter: Stock Trend & Sector Trend In Sync
+                beacon_df = beacon_df[
+                    ((beacon_df['Morning_Change'] >= 0) & (beacon_df['Sector_Avg_Change'] >= 0)) | 
+                    ((beacon_df['Morning_Change'] < 0) & (beacon_df['Sector_Avg_Change'] < 0))
+                ]
+                
                 beacon_df['Score'] = (beacon_df['Morning_Change'].abs() * beacon_df['Morning_Vol_Spike']).round(2)
                 beacon_df['Beacon_Signal'] = beacon_df['Morning_Change'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
                 beacon_df['Change_Badge'] = beacon_df['Morning_Change'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
@@ -477,8 +507,11 @@ if not df_data.empty:
                     columns={'Beacon_Signal': 'Signal', 'Chart': 'Symbol', 'Change_Badge': '%', 'Score': 'Signal %', 'Morning_Time': 'Time'}
                 )
             else:
-                # Live Market Mode Filtered by Price > VWAP for Bullish and Price < VWAP for Bearish
-                beacon_df = beacon_df[((beacon_df['Change %'] >= 0) & (beacon_df['Price'] >= beacon_df['VWAP'])) | ((beacon_df['Change %'] < 0) & (beacon_df['Price'] < beacon_df['VWAP']))]
+                # Live Market Mode: VWAP + Sector Alignment Filter
+                beacon_df = beacon_df[
+                    (((beacon_df['Change %'] >= 0) & (beacon_df['Price'] >= beacon_df['VWAP']) & (beacon_df['Sector_Avg_Change'] >= 0)) | 
+                    ((beacon_df['Change %'] < 0) & (beacon_df['Price'] < beacon_df['VWAP']) & (beacon_df['Sector_Avg_Change'] < 0)))
+                ]
                 beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
                 beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
                 beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
@@ -589,7 +622,6 @@ if not df_data.empty:
 
         st.markdown("---")
 
-        # CLEANED DRILL-DOWN TABLE (NO VWAP COLUMN)
         st.subheader("🎯 Sector Drill-down")
         selected_sector = st.selectbox("Select Sector to Inspect:", options=sector_summary['Sector'].tolist())
         sector_stocks = df_data[df_data['Sector'] == selected_sector]
