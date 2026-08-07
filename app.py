@@ -147,9 +147,10 @@ if "ws_started" not in st.session_state:
     if os.path.exists("fyers_token.txt"):
         with open("fyers_token.txt", "r") as f:
             tok = f.read().strip()
-        ws_thread = threading.Thread(target=start_fyers_websocket, args=(tok,), daemon=True)
-        ws_thread.start()
-        st.session_state["ws_started"] = True
+        if tok:
+            ws_thread = threading.Thread(target=start_fyers_websocket, args=(tok,), daemon=True)
+            ws_thread.start()
+            st.session_state["ws_started"] = True
 
 # --- LOGIN SYSTEM ---
 USER_CREDENTIALS = {
@@ -280,7 +281,6 @@ def fetch_base_analytics():
         
     fyers = fyersModel.FyersModel(client_id=CLIENT_ID, token=access_token, log_path="")
     
-    # Unique Symbols Single-Fetch Cache (Prevents API Rate Limits)
     symbol_data_cache = {}
     to_date = datetime.now().strftime('%Y-%m-%d')
     from_date = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
@@ -326,8 +326,17 @@ def fetch_base_analytics():
             morning_change = 0.0
             morning_vol_spike = 1.0
             first_breakout_time = "09:15"
+            vwap_val = df['Close'].iloc[-1]
             
             if not df_today.empty:
+                # --- STEP 1: VWAP CALCULATION ---
+                df_today['Typical_Price'] = (df_today['High'] + df_today['Low'] + df_today['Close']) / 3
+                df_today['VP'] = df_today['Typical_Price'] * df_today['Volume']
+                cum_vol = df_today['Volume'].cumsum()
+                df_today['VWAP'] = df_today['VP'].cumsum() / (cum_vol.replace(0, 1))
+                vwap_val = round(df_today['VWAP'].iloc[-1], 2)
+                # --------------------------------
+
                 open_price = df_today['Open'].iloc[0]
                 df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
                 mean_vol = df_today['Volume'].mean()
@@ -377,6 +386,7 @@ def fetch_base_analytics():
                 'Price': round(current_price, 2),
                 'PrevClose': prev_close,
                 'EMA20': ema20_val,
+                'VWAP': vwap_val,
                 'RSI': rsi_val,
                 'R Fact': r_fact,
                 'Time': df.index[-1].strftime('%H:%M'),
@@ -405,17 +415,24 @@ def get_live_data():
     df_data['Change %'] = ((df_data['Price'] - df_data['PrevClose']) / df_data['PrevClose'] * 100).round(2)
     df_data['Abs Change'] = df_data['Change %'].abs() + 0.1
 
+    # --- STEP 2: VWAP CONFIRMATION SIGNAL GENERATOR ---
     def generate_signal(row):
-        above_ema = row['Price'] > row['EMA20']
+        price = row['Price']
+        above_ema = price > row['EMA20']
+        above_vwap = price > row['VWAP']
         rsi_val = row['RSI']
         r_fact = row['R Fact']
-        if above_ema and rsi_val > 55 and r_fact > 1.2:
+        
+        # Bullish Signals (Price > EMA AND Price > VWAP)
+        if above_ema and above_vwap and rsi_val > 55 and r_fact > 1.2:
             return '<span class="badge-strong-buy">🚀 ⬆️ Strong Buy</span>'
-        elif above_ema and rsi_val > 50:
+        elif above_ema and above_vwap and rsi_val > 50:
             return '<span class="badge-buy">⬆️ Buy</span>'
-        elif not above_ema and rsi_val < 40 and r_fact > 1.2:
+            
+        # Bearish Signals (Price < EMA AND Price < VWAP)
+        elif not above_ema and not above_vwap and rsi_val < 40 and r_fact > 1.2:
             return '<span class="badge-strong-sell">🚀 ⬇️ Strong Sell</span>'
-        elif not above_ema and rsi_val < 45:
+        elif not above_ema and not above_vwap and rsi_val < 45:
             return '<span class="badge-sell">⬇️ Sell</span>'
         else:
             return '<span class="badge-hold">❌ Hold</span>'
@@ -580,7 +597,7 @@ if not df_data.empty:
         st.subheader("🎯 Sector Drill-down")
         selected_sector = st.selectbox("Select Sector to Inspect:", options=sector_summary['Sector'].tolist())
         sector_stocks = df_data[df_data['Sector'] == selected_sector]
-        display_sector = sector_stocks[['Chart', 'Price', 'Change %', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
+        display_sector = sector_stocks[['Chart', 'Price', 'VWAP', 'Change %', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
         st.write(display_sector.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 else:
