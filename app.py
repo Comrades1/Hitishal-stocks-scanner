@@ -109,7 +109,7 @@ SECTOR_DATA = {
 
 ALL_SYMBOLS = list(set([symbol for list_symbols in SECTOR_DATA.values() for symbol in list_symbols]))
 
-# --- LIVE WEBSOCKET ENGINE (BACKGROUND THREAD) ---
+# --- LIVE WEBSOCKET ENGINE ---
 if "live_ticks" not in st.session_state:
     st.session_state["live_ticks"] = {}
 
@@ -190,7 +190,6 @@ st.sidebar.markdown("---")
 st.sidebar.title("🧭 Dashboard Navigation")
 app_mode = st.sidebar.radio("Choose Section:", ["Market Pulse", "Sector Scope"])
 
-# Live second-by-second auto refresh (1000ms = 1 second)
 st_autorefresh(interval=1000, limit=None, key="live_tick_refresh")
 
 # Custom UI Styling
@@ -269,7 +268,6 @@ def calculate_rsi(series, period=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# Caching Indicators, REST Data Fetching & Live Websocket Integration
 @st.cache_data(ttl=60)
 def fetch_base_analytics():
     if not os.path.exists("fyers_token.txt"):
@@ -329,13 +327,12 @@ def fetch_base_analytics():
             vwap_val = df['Close'].iloc[-1]
             
             if not df_today.empty:
-                # --- STEP 1: VWAP CALCULATION ---
+                # --- BACKGROUND VWAP CALCULATION ---
                 df_today['Typical_Price'] = (df_today['High'] + df_today['Low'] + df_today['Close']) / 3
                 df_today['VP'] = df_today['Typical_Price'] * df_today['Volume']
                 cum_vol = df_today['Volume'].cumsum()
                 df_today['VWAP'] = df_today['VP'].cumsum() / (cum_vol.replace(0, 1))
                 vwap_val = round(df_today['VWAP'].iloc[-1], 2)
-                # --------------------------------
 
                 open_price = df_today['Open'].iloc[0]
                 df_today['Pct_From_Open'] = ((df_today['Close'] - open_price) / open_price) * 100
@@ -347,7 +344,12 @@ def fetch_base_analytics():
                     orb_high = df_orb_range['High'].max()
                     orb_low = df_orb_range['Low'].min()
                     df_post_orb = df_today.between_time('09:35', '11:30')
-                    orb_breakouts = df_post_orb[(df_post_orb['Close'] > orb_high) | (df_post_orb['Close'] < orb_low)]
+                    
+                    # --- VWAP FILTER INTEGRATED IN BEACON BREAKOUT ---
+                    orb_breakouts = df_post_orb[
+                        ((df_post_orb['Close'] > orb_high) & (df_post_orb['Close'] > df_post_orb['VWAP'])) | 
+                        ((df_post_orb['Close'] < orb_low) & (df_post_orb['Close'] < df_post_orb['VWAP']))
+                    ]
                     
                     if not orb_breakouts.empty:
                         first_dt = orb_breakouts.index[0]
@@ -397,7 +399,6 @@ def fetch_base_analytics():
             
     return pd.DataFrame(all_stocks)
 
-# WebSocket Se Dynamic Updates Override Karein
 def get_live_data():
     df_data = fetch_base_analytics().copy()
     if df_data.empty:
@@ -415,7 +416,7 @@ def get_live_data():
     df_data['Change %'] = ((df_data['Price'] - df_data['PrevClose']) / df_data['PrevClose'] * 100).round(2)
     df_data['Abs Change'] = df_data['Change %'].abs() + 0.1
 
-    # --- STEP 2: VWAP CONFIRMATION SIGNAL GENERATOR ---
+    # Cleaned Signals Logic (Background VWAP Confirm Filter Active)
     def generate_signal(row):
         price = row['Price']
         above_ema = price > row['EMA20']
@@ -423,19 +424,17 @@ def get_live_data():
         rsi_val = row['RSI']
         r_fact = row['R Fact']
         
-        # Bullish Signals (Price > EMA AND Price > VWAP)
         if above_ema and above_vwap and rsi_val > 55 and r_fact > 1.2:
-            return '<span class="badge-strong-buy">🚀 ⬆️ Strong Buy</span>'
+            return '<span class="badge-strong-buy">Strong Buy</span>'
         elif above_ema and above_vwap and rsi_val > 50:
-            return '<span class="badge-buy">⬆️ Buy</span>'
+            return '<span class="badge-buy">Buy</span>'
             
-        # Bearish Signals (Price < EMA AND Price < VWAP)
         elif not above_ema and not above_vwap and rsi_val < 40 and r_fact > 1.2:
-            return '<span class="badge-strong-sell">🚀 ⬇️ Strong Sell</span>'
+            return '<span class="badge-strong-sell">Strong Sell</span>'
         elif not above_ema and not above_vwap and rsi_val < 45:
-            return '<span class="badge-sell">⬇️ Sell</span>'
+            return '<span class="badge-sell">Sell</span>'
         else:
-            return '<span class="badge-hold">❌ Hold</span>'
+            return '<span class="badge-hold">Hold</span>'
 
     df_data['Signal'] = df_data.apply(generate_signal, axis=1)
     return df_data
@@ -448,7 +447,6 @@ df_data = get_live_data()
 if not df_data.empty:
     market_badge = '<span style="font-size:12px; color:#3fb950; border:1px solid #238636; padding:2px 6px; border-radius:4px;">⚡ LIVE WEBSOCKET</span>' if is_market_open() else '<span style="font-size:12px; color:#f85149; border:1px solid #da3633; padding:2px 6px; border-radius:4px;">🔴 MARKET CLOSED</span>'
 
-    # --- 1. MARKET PULSE SECTION ---
     if app_mode == "Market Pulse":
         st.subheader("🔥 Market Pulse Scanners")
         
@@ -479,6 +477,8 @@ if not df_data.empty:
                     columns={'Beacon_Signal': 'Signal', 'Chart': 'Symbol', 'Change_Badge': '%', 'Score': 'Signal %', 'Morning_Time': 'Time'}
                 )
             else:
+                # Live Market Mode Filtered by Price > VWAP for Bullish and Price < VWAP for Bearish
+                beacon_df = beacon_df[((beacon_df['Change %'] >= 0) & (beacon_df['Price'] >= beacon_df['VWAP'])) | ((beacon_df['Change %'] < 0) & (beacon_df['Price'] < beacon_df['VWAP']))]
                 beacon_df['Score'] = (beacon_df['Change %'].abs() * 1.2).round(2)
                 beacon_df['Beacon_Signal'] = beacon_df['Change %'].apply(lambda x: '<span class="badge-bull">BULL</span>' if x >= 0 else '<span class="badge-bear">BEAR</span>')
                 beacon_df['Change_Badge'] = beacon_df['Change %'].apply(lambda x: f'<span class="badge-val-green">{x:+.2f}%</span>' if x >= 0 else f'<span class="badge-val-red">{x:.2f}%</span>')
@@ -538,18 +538,13 @@ if not df_data.empty:
             )
             st.write(display_boost.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # --- 2. SECTOR SCOPE SECTION ---
     elif app_mode == "Sector Scope":
         st.subheader("📊 Sector Heatmap (Sorted by Top Performers)")
         
-        # Calculate Average Sector Performance for Sorting
         sector_perf = df_data.groupby('Sector')['Change %'].mean().reset_index()
         sector_perf.rename(columns={'Change %': 'Sector_Avg_Change'}, inplace=True)
         
-        # Merge average performance back to df_data
         df_sorted = pd.merge(df_data, sector_perf, on='Sector')
-        
-        # Sort DataFrame: First by Sector Average Change (Descending), Then Stock Change % (Descending)
         df_sorted = df_sorted.sort_values(by=['Sector_Avg_Change', 'Change %'], ascending=[False, False])
 
         fig_map = px.treemap(
@@ -594,10 +589,11 @@ if not df_data.empty:
 
         st.markdown("---")
 
+        # CLEANED DRILL-DOWN TABLE (NO VWAP COLUMN)
         st.subheader("🎯 Sector Drill-down")
         selected_sector = st.selectbox("Select Sector to Inspect:", options=sector_summary['Sector'].tolist())
         sector_stocks = df_data[df_data['Sector'] == selected_sector]
-        display_sector = sector_stocks[['Chart', 'Price', 'VWAP', 'Change %', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
+        display_sector = sector_stocks[['Chart', 'Price', 'Change %', 'R Fact', 'Signal']].sort_values(by='Change %', ascending=False).rename(columns={'Chart': 'Symbol ↗'})
         st.write(display_sector.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 else:
